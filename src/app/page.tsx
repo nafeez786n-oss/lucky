@@ -14,7 +14,6 @@ import {
   ExternalLink,
   Lock,
   Bug,
-  Terminal,
   Radar,
   Cpu,
   Globe,
@@ -26,56 +25,154 @@ import {
   Zap,
   Activity,
   ChevronRight,
+  ChevronDown,
   Box,
-  ScanLine,
   Crosshair,
   Layers,
   CircuitBoard,
   Wifi,
   Signal,
+  Target,
+  ScanLine,
+  Brain,
+  CheckCircle2,
+  AlertTriangle,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import type { ScanResult, Finding } from "@/lib/leak-scanner";
 import { SEVERITY_META, CATEGORY_META, severityCount } from "@/lib/leak-ui";
 import { AuthButton } from "@/components/auth/auth-button";
 
-// Heavy 3D scene — load client-side only
 const LeakGuardScene = dynamic(
   () => import("@/components/three/leak-guard-scene").then((m) => m.LeakGuardScene),
   {
     ssr: false,
     loading: () => (
-      <div className="h-[420px] flex items-center justify-center text-neutral-500 font-mono text-xs">
+      <div className="h-full flex items-center justify-center text-cyan-400/70 font-mono text-xs">
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        Initializing 3D scanner…
+        Initializing scanner…
       </div>
     ),
   }
 );
 
-// Background 3D scene — also client-side only
 const BackgroundScene = dynamic(
   () => import("@/components/three/background-scene").then((m) => m.BackgroundScene),
   { ssr: false }
 );
 
-const SCANNER_STAGES = [
-  { label: "Validating target URL", icon: Globe },
-  { label: "Fetching HTML (15s timeout)", icon: Download },
-  { label: "Scanning HTML for secrets", icon: Search },
-  { label: "Extracting <script> URLs (cap 20)", icon: FileWarning },
-  { label: "Fetching each script (10s each, cap 600KB)", icon: Cpu },
-  { label: "Probing .map files", icon: Map },
-  { label: "Probing 12 well-known leak paths", icon: Database },
-  { label: "Scoring & ranking findings", icon: Activity },
+// ============================================================================
+// 6-stage premium scanning experience
+// ============================================================================
+const SCAN_STAGES: { id: string; label: string; icon: LucideIcon; accent: "cyan" | "violet" | "white" }[] = [
+  { id: "acquire",  label: "TARGET ACQUIRED", icon: Target,      accent: "white" },
+  { id: "fetch",    label: "FETCHING",        icon: Globe,       accent: "cyan" },
+  { id: "analyze",  label: "ANALYZING",       icon: ScanLine,     accent: "cyan" },
+  { id: "pattern",  label: "PATTERN MATCH",  icon: Cpu,          accent: "violet" },
+  { id: "fingerprint", label: "AI FINGERPRINT", icon: Brain,     accent: "violet" },
+  { id: "complete", label: "COMPLETE",        icon: CheckCircle2, accent: "cyan" },
 ];
 
+// ============================================================================
+// Detection matrix cards — interactive with hover glow + status indicator
+// ============================================================================
+const DETECTION_CARDS: {
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  accent: "cyan" | "violet";
+  examples: string[];
+  coverage: string;
+}[] = [
+  {
+    id: "api_keys",
+    title: "API Keys",
+    description: "Cloud + SaaS credentials hardcoded into client bundles.",
+    icon: KeyRound,
+    accent: "cyan",
+    examples: ["AWS AKIA*", "OpenAI sk-", "Anthropic sk-ant-", "Google AI AIza*", "GitHub ghp_", "Stripe sk_live_", "Slack xox*"],
+    coverage: "12+ patterns",
+  },
+  {
+    id: "secrets",
+    title: "Hardcoded Secrets",
+    description: "JWTs, Bearer tokens, PEM private keys, DB connection strings.",
+    icon: Lock,
+    accent: "violet",
+    examples: ["JWT eyJ*", "Bearer xyz", "-----BEGIN PRIVATE KEY-----", "mongodb://user:pass@"],
+    coverage: "8+ patterns",
+  },
+  {
+    id: "ai_fingerprint",
+    title: "AI Fingerprints",
+    description: "Meta tags + comments revealing the AI generator used.",
+    icon: Fingerprint,
+    accent: "cyan",
+    examples: ["v0.dev", "lovable.dev", "bolt.new", "Cursor", "Claude", "ChatGPT"],
+    coverage: "6 generators",
+  },
+  {
+    id: "exposed_files",
+    title: "Exposed Files",
+    description: "Well-known leak paths returning 200 OK to anyone.",
+    icon: FileWarning,
+    accent: "violet",
+    examples: ["/.env", "/.git/config", "/.git/HEAD", "/.DS_Store", "/package.json", "/actuator/health"],
+    coverage: "12 paths probed",
+  },
+  {
+    id: "source_maps",
+    title: "Source Maps",
+    description: ".map files exposing original pre-minification source code.",
+    icon: Map,
+    accent: "cyan",
+    examples: ["*.js.map", "//# sourceMappingURL=", "inline annotations"],
+    coverage: "Per-script probe",
+  },
+  {
+    id: "pii",
+    title: "Personal Data",
+    description: "Hardcoded emails and phone numbers in client-visible code.",
+    icon: Database,
+    accent: "violet",
+    examples: ["dev@example.com", "+1 (555) 555-5555"],
+    coverage: "Email + phone regex",
+  },
+  {
+    id: "debug_routes",
+    title: "Debug Routes",
+    description: "Dev-mode artifacts suggesting production ships a dev build.",
+    icon: Bug,
+    accent: "cyan",
+    examples: ["console.log spam", "Next.js __nextjs_original-stack-frame", "Vite /@vite/", "/@react-refresh"],
+    coverage: "4 patterns",
+  },
+  {
+    id: "misconfig",
+    title: "Misconfigurations",
+    description: "process.env.* leaking into the client bundle from bad bundler setup.",
+    icon: Cpu,
+    accent: "violet",
+    examples: ["process.env.DATABASE_URL", "process.env.JWT_SECRET"],
+    coverage: "Bundler leak check",
+  },
+];
+
+// ============================================================================
+// Main page component
+// ============================================================================
 export default function Home() {
   const { data: session } = useSession();
   const [url, setUrl] = useState("");
@@ -86,8 +183,9 @@ export default function Home() {
   const [savedScans, setSavedScans] = useState<ScanResult[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [clock, setClock] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Live UTC clock for HUD feel
+  // Live UTC clock
   useEffect(() => {
     const tick = () => {
       const d = new Date();
@@ -134,9 +232,12 @@ export default function Home() {
     setResult(null);
     setStage(0);
 
+    // Bounded 6-stage progression (finite timeouts — not a polling loop)
     const stageTimers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 1; i < SCANNER_STAGES.length; i++) {
-      stageTimers.push(setTimeout(() => setStage(i), i * 1100));
+    // Stages 1..5 fire at intervals; stage 6 (complete) fires when response arrives
+    const intervals = [0, 2200, 6500, 11000, 15000, 19000];
+    for (let i = 1; i < SCAN_STAGES.length; i++) {
+      stageTimers.push(setTimeout(() => setStage(i), intervals[i]));
     }
 
     try {
@@ -147,7 +248,7 @@ export default function Home() {
       });
       const data: ScanResult = await res.json();
       for (const t of stageTimers) clearTimeout(t);
-      setStage(SCANNER_STAGES.length);
+      setStage(SCAN_STAGES.length - 1); // COMPLETE
 
       setResult(data);
       if (!data.ok && data.errors.length > 0) {
@@ -199,381 +300,263 @@ export default function Home() {
     }
   }
 
-  // ---------- Layout: sidebar + main ----------
+  // -------- Layout: sidebar (desktop/tablet) + main, top bar (mobile) --------
   return (
     <div className="min-h-screen flex bg-background text-foreground relative">
-      {/* Fixed 3D wireframe background (always visible) */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-grid scanline opacity-50" />
+      {/* 3D wireframe + grid + scanline background */}
+      <div className="fixed inset-0 -z-10 pointer-events-none noise-overlay">
+        <div className="absolute inset-0 bg-grid-fine scanline-overlay opacity-60" />
         <BackgroundScene />
       </div>
 
-      {/* ============== SIDEBAR (fixed left) ============== */}
-      <aside className="w-[240px] shrink-0 border-r border-neutral-800/60 bg-black/70 backdrop-blur-md sticky top-0 h-screen flex flex-col">
-        {/* Logo / system title */}
-        <div className="px-4 py-5 border-b border-neutral-800/60">
-          <div className="flex items-center gap-2">
-            <motion.div
-              initial={{ rotate: -8, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="w-8 h-8 border border-neutral-400/60 bg-neutral-100/5 flex items-center justify-center"
-            >
-              <ShieldAlert className="w-4 h-4 text-neutral-200" />
-            </motion.div>
-            <div>
-              <h1 className="text-sm font-mono font-semibold tracking-tight leading-none">
-                <span className="text-white text-glow-white">LEAK</span>
-                <span className="text-neutral-400">GUARD</span>
-              </h1>
-              <p className="text-[9px] text-neutral-500 mt-1 font-mono uppercase tracking-[0.2em]">
-                v1.0 // OP-CONSOLE
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Status block */}
-        <div className="px-4 py-4 border-b border-neutral-800/60 space-y-2.5">
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-neutral-500 uppercase tracking-wider">SYS</span>
-            <span className="flex items-center gap-1.5 text-neutral-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-neutral-200 animate-pulse" />
-              ONLINE
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-neutral-500 uppercase tracking-wider">UTC</span>
-            <span className="text-neutral-300 tabular-nums">{clock || "--:--:--"}</span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-neutral-500 uppercase tracking-wider">CHN</span>
-            <span className="flex items-center gap-1.5 text-neutral-300">
-              <Wifi className="w-2.5 h-2.5" />
-              STABLE
-            </span>
-          </div>
-        </div>
-
-        {/* Nav (single-page, just indicators) */}
-        <nav className="px-2 py-4 flex-1 space-y-0.5">
-          <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-600 px-2 mb-2">
-            {"// MODULES"}
-          </p>
-          {NAV_ITEMS.map((n) => (
-            <a
-              key={n.label}
-              href={n.href}
-              className="flex items-center gap-2.5 px-2.5 py-2 text-xs font-mono text-neutral-400 hover:bg-neutral-100/5 hover:text-neutral-100 transition group"
-            >
-              <n.icon className="w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-200" />
-              <span className="flex-1">{n.label}</span>
-              <ChevronRight className="w-3 h-3 opacity-30 group-hover:opacity-100" />
-            </a>
-          ))}
-        </nav>
-
-        {/* Operator block */}
-        <div className="px-3 py-3 border-t border-neutral-800/60">
-          <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-600 px-1 mb-2">
-            {"// OPERATOR"}
-          </p>
-          <AuthButton />
-        </div>
-
-        {/* Footer */}
-        <div className="px-3 py-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-600 flex items-center justify-between">
-          <span className="flex items-center gap-1">
-            <CircuitBoard className="w-2.5 h-2.5" />
-            BOUNDED // NO-LOOP
-          </span>
-          <span>v1.0</span>
-        </div>
+      {/* ============ SIDEBAR (desktop + tablet) ============ */}
+      <aside className="hidden md:flex w-[68px] lg:w-[240px] shrink-0 sticky top-0 h-screen flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl">
+        <SidebarContent clock={clock} session={session} />
       </aside>
 
-      {/* ============== MAIN CONTENT ============== */}
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-black/70 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center">
+            <ShieldAlert className="w-4 h-4 text-cyan-300" />
+          </div>
+          <h1 className="text-sm font-semibold tracking-tight">
+            <span className="text-white">LEAK</span>
+            <span className="text-cyan-300">GUARD</span>
+          </h1>
+        </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/5"
+        >
+          <ChevronDown className={`w-4 h-4 transition ${mobileMenuOpen ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden fixed top-[57px] left-0 right-0 z-20 border-b border-white/5 bg-black/90 backdrop-blur-xl overflow-hidden"
+          >
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between text-[10px] font-mono text-white/40">
+                <span>UTC</span>
+                <span className="tabular-nums text-white/70">{clock}</span>
+              </div>
+              <AuthButton />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ============ MAIN CONTENT ============ */}
       <main className="flex-1 min-w-0 relative">
-        {/* Top status strip */}
-        <div className="border-b border-neutral-800/60 bg-black/40 backdrop-blur-sm">
-          <div className="px-6 py-2 flex items-center justify-between gap-3 text-[10px] font-mono">
-            <div className="flex items-center gap-4 text-neutral-500">
+        {/* Top status strip (desktop only) */}
+        <div className="hidden md:block border-b border-white/5 bg-black/30 backdrop-blur-md">
+          <div className="px-6 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
+            <div className="flex items-center gap-5 text-white/40">
               <span className="flex items-center gap-1.5">
                 <Crosshair className="w-3 h-3" />
-                TARGET: <span className="text-neutral-300">{result?.targetUrl ?? "—"}</span>
+                TARGET: <span className="text-white/80">{result?.targetUrl ?? "—"}</span>
               </span>
-              <span className="hidden sm:flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5">
                 <Layers className="w-3 h-3" />
-                FINDINGS: <span className="text-neutral-300 tabular-nums">{result?.findings.length ?? 0}</span>
+                FINDINGS: <span className="text-white/80 tabular-nums">{result?.findings.length ?? 0}</span>
               </span>
-              <span className="hidden md:flex items-center gap-1.5">
+              <span className="hidden lg:flex items-center gap-1.5">
                 <Signal className="w-3 h-3" />
-                STATUS: <span className="text-neutral-300">{scanning ? "SCANNING" : result ? "DONE" : "IDLE"}</span>
+                STATUS: <span className="text-white/80">{scanning ? "SCANNING" : result ? "DONE" : "IDLE"}</span>
               </span>
             </div>
-            <div className="text-neutral-600">
-              {session?.user ? `OP: ${session.user.email}` : "GUEST"}
+            <div className="text-white/40">
+              {session?.user ? `OP: ${session.user.email}` : "GUEST MODE"}
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-8 max-w-6xl">
-          {/* ===== HERO (asymmetric: large input left, status panel right) ===== */}
-          <section className="mb-8 grid lg:grid-cols-[1.6fr_1fr] gap-4">
-            {/* Hero input panel */}
+        <div className="px-4 md:px-8 lg:px-12 py-8 md:py-12 max-w-7xl mx-auto pt-20 md:pt-12">
+          {/* ===== HERO ===== */}
+          <section className="mb-12 md:mb-16">
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="hud-card hud-brackets-bottom p-6 relative"
+              transition={{ duration: 0.5 }}
+              className="text-center mb-8"
             >
-              <div className="absolute top-2 right-3 text-[9px] font-mono text-neutral-600 tracking-wider">
-                MODULE_01 // TARGET_INPUT
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-[10px] font-mono mb-6 tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                BOUNDED · NO LOOPS · NO POLLING
               </div>
-              <h2 className="text-2xl md:text-3xl font-mono font-bold tracking-tight leading-tight mb-3">
-                <span className="text-neutral-200">Find every</span>{" "}
-                <span className="text-white text-glow-white">leaked secret</span>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-[1.05] mb-4">
+                <span className="text-white">Find every exposed</span>
                 <br />
-                <span className="text-neutral-200">in AI-built websites</span>
-              </h2>
-              <p className="text-xs text-neutral-500 mb-5 max-w-md leading-relaxed">
-                Drop a URL. LeakGuard fetches the HTML, follows up to 20 scripts, probes 12 leak
-                paths, and surfaces API keys, source maps, and AI fingerprints — in one bounded request.
+                <span className="text-gradient-cyan-violet">secret.</span>
+                <span className="text-white/50"> Before attackers do.</span>
+              </h1>
+              <p className="text-sm md:text-base text-white/50 max-w-xl mx-auto leading-relaxed">
+                LeakGuard fetches the target, follows up to 20 scripts, probes 12 leak paths, and
+                surfaces API keys, source maps, and AI fingerprints — in a single bounded request.
               </p>
-
-              <form onSubmit={runScan} className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-neutral-500 text-sm pointer-events-none">
-                    $
-                  </span>
-                  <Input
-                    type="text"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="scan https://example.com"
-                    className="pl-7 font-mono text-sm h-11 bg-black/70 border-neutral-700 focus-visible:border-neutral-400 focus-visible:ring-neutral-400/20"
-                    disabled={scanning}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={scanning}
-                  className="h-11 bg-white hover:bg-neutral-200 text-black font-mono font-semibold border border-neutral-300 shadow-[0_0_20px_-8px_rgba(220,220,220,0.55)]"
-                >
-                  {scanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      SCANNING
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-4 h-4 mr-2" />
-                      EXECUTE
-                    </>
-                  )}
-                </Button>
-              </form>
-
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-neutral-600">
-                <span className="text-neutral-500">try:</span>
-                {["https://httpbin.org", "https://example.com"].map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setUrl(t)}
-                    disabled={scanning}
-                    className="px-2 py-0.5 border border-neutral-700 bg-neutral-100/5 text-neutral-300 hover:bg-neutral-100/10 hover:border-neutral-500 transition disabled:opacity-50"
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
             </motion.div>
 
-            {/* Side panel — quick stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
+            {/* URL input — premium glass */}
+            <motion.form
+              onSubmit={runScan}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.05 }}
-              className="hud-card hud-brackets-bottom p-5 flex flex-col justify-between"
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="glass-panel glass-panel-hover rounded-2xl p-2 flex flex-col sm:flex-row gap-2 max-w-2xl mx-auto"
             >
-              <div className="absolute top-2 right-3 text-[9px] font-mono text-neutral-600 tracking-wider">
-                MODULE_02 // TELEMETRY
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Input
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="pl-11 h-12 bg-transparent border-0 focus-visible:ring-0 font-mono text-sm placeholder:text-white/30"
+                  disabled={scanning}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
               </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-neutral-500 mb-3 uppercase tracking-wider">
-                  <Zap className="w-3 h-3" />
-                  Bounded // No loops
+              <Button
+                type="submit"
+                disabled={scanning}
+                className="h-12 px-6 bg-white hover:bg-white/90 text-black font-semibold tracking-tight shadow-[0_0_30px_-8px_rgba(255,255,255,0.4)]"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scanning
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Execute Scan
+                  </>
+                )}
+              </Button>
+            </motion.form>
+
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono text-white/40">
+              <span className="text-white/30">try:</span>
+              {["https://httpbin.org", "https://example.com"].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setUrl(t)}
+                  disabled={scanning}
+                  className="px-2.5 py-1 rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-cyan-300 hover:border-cyan-400/30 hover:bg-cyan-400/5 transition disabled:opacity-40"
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* ===== SCANNING (animated 6-stage) ===== */}
+          <AnimatePresence>
+            {scanning && (
+              <motion.section
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-12 overflow-hidden"
+              >
+                <ScanProgress currentStage={stage} />
+              </motion.section>
+            )}
+          </AnimatePresence>
+
+          {/* ===== 3D VERIFICATION CONSTELLATION (centerpiece) ===== */}
+          <section className="mb-12 md:mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="glass-panel rounded-2xl overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center">
+                    <Box className="w-4 h-4 text-cyan-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight">Verification Constellation</h3>
+                    <p className="text-[11px] text-white/40 font-mono">interactive · 3D · drag to orbit</p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Stat label="MAX SCRIPTS" value="20" />
-                  <Stat label="MAX JS BYTES" value="600K" />
-                  <Stat label="PATH PROBES" value="12" />
-                  <Stat label="TIMEOUT" value="15s" />
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  LIVE
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-neutral-800/60">
-                <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
-                  Every fetch has a hard timeout. Every loop iterates over a capped array. The
-                  scan finishes in under 60 seconds.
+              <div className="relative h-[400px] sm:h-[500px] lg:h-[600px]">
+                <LeakGuardScene />
+              </div>
+              <div className="px-6 py-3 border-t border-white/5 text-center">
+                <p className="text-xs text-white/50 max-w-2xl mx-auto">
+                  Each orbiting model represents one leak category LeakGuard probes — a key for API
+                  keys, lock for secrets, fingerprint for AI-tool traces, document for exposed files,
+                  pyramid for source maps, avatar for PII, bug for debug routes, gear for misconfig.
                 </p>
               </div>
             </motion.div>
           </section>
 
-          {/* ===== Scanning radar (during scan) ===== */}
-          {scanning && (
-            <section className="mb-8">
-              <div className="hud-card hud-brackets-bottom p-5">
-                <div className="grid md:grid-cols-[220px_1fr] gap-5 items-center">
-                  <ScanRadar />
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Loader2 className="w-4 h-4 animate-spin text-neutral-300" />
-                      <h3 className="font-mono text-sm text-neutral-200 tracking-wider">
-                        SCAN IN PROGRESS
-                      </h3>
-                    </div>
-                    <ol className="space-y-1 text-sm">
-                      {SCANNER_STAGES.map((s, i) => {
-                        const done = i < stage;
-                        const active = i === stage;
-                        const Icon = s.icon;
-                        return (
-                          <li
-                            key={s.label}
-                            className={`flex items-center gap-2 font-mono text-xs ${
-                              done
-                                ? "text-neutral-200"
-                                : active
-                                ? "text-neutral-100"
-                                : "text-neutral-700"
-                            }`}
-                          >
-                            <span
-                              className={`w-5 h-5 flex items-center justify-center text-[9px] ${
-                                done
-                                  ? "bg-white text-black"
-                                  : active
-                                  ? "bg-neutral-200/20 text-neutral-100 border border-neutral-400/40"
-                                  : "bg-neutral-900 text-neutral-700"
-                              }`}
-                            >
-                              {done ? "✓" : i + 1}
-                            </span>
-                            <Icon className={`w-3 h-3 ${done || active ? "text-neutral-200" : ""}`} />
-                            {s.label}
-                            {active && <span className="animate-blink text-neutral-200">▌</span>}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                </div>
+          {/* ===== DETECTION MATRIX — interactive cards ===== */}
+          <section className="mb-12 md:mb-16">
+            <div className="flex items-end justify-between mb-6">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Detection Matrix</h2>
+                <p className="text-sm text-white/50 mt-1">
+                  Eight leak categories scanned on every request.
+                </p>
               </div>
-            </section>
-          )}
-
-          {/* ===== 3D Verification section ===== */}
-          <section className="mb-8">
-            <div className="hud-card hud-brackets-bottom overflow-hidden">
-              <div className="px-5 py-3 border-b border-neutral-800/60 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 border border-neutral-600 bg-neutral-100/5 flex items-center justify-center">
-                    <Box className="w-3.5 h-3.5 text-neutral-300" />
-                  </div>
-                  <div>
-                    <h3 className="font-mono text-xs text-neutral-200 tracking-wider">
-                      MODULE_03 // VERIFICATION CONSTELLATION
-                    </h3>
-                    <p className="text-[10px] font-mono text-neutral-500">
-                      Interactive 3D map of LeakGuard&apos;s detection surface
-                    </p>
-                  </div>
-                </div>
-                <div className="text-[9px] font-mono text-neutral-600 hidden sm:block">
-                  WEBGL · THREE.JS · R3F
-                </div>
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/40">
+                <Zap className="w-3 h-3" />
+                {DETECTION_CARDS.length} CATEGORIES
               </div>
-              <div className="grid lg:grid-cols-[1fr_300px]">
-                <div className="relative h-[420px] sm:h-[460px] border-b lg:border-b-0 lg:border-r border-neutral-800/60">
-                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2 py-1 border border-neutral-700 bg-black/70 text-[10px] font-mono text-neutral-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-200 animate-pulse" />
-                    LIVE · DRAG TO ORBIT
-                  </div>
-                  <div className="absolute bottom-3 right-3 z-10 text-[10px] font-mono text-neutral-600">
-                    3D · CONSTELLATION
-                  </div>
-                  <LeakGuardScene />
-                </div>
+            </div>
 
-                <div className="p-5 space-y-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <ScanLine className="w-3.5 h-3.5 text-neutral-300" />
-                      <h4 className="text-xs font-mono font-semibold text-neutral-200 tracking-wider uppercase">
-                        What LeakGuard verifies
-                      </h4>
-                    </div>
-                    <p className="text-xs text-neutral-500 leading-relaxed">
-                      The 3D constellation maps every capability to a unique orbiting model: key
-                      for API keys, lock for secrets, fingerprint for AI-tool traces, document for
-                      exposed files, pyramid for source maps, avatar for PII, bug for debug routes,
-                      gear for misconfig. Six scan rays fire from the glowing core on every scan.
-                    </p>
-                  </div>
-
-                  <ul className="space-y-2">
-                    {VERIFICATION_POINTS.map((p, i) => (
-                      <motion.li
-                        key={p.title}
-                        initial={{ opacity: 0, x: -6 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: i * 0.06 }}
-                        className="flex items-start gap-2 text-xs"
-                      >
-                        <span className="w-5 h-5 flex items-center justify-center text-[10px] font-mono shrink-0 mt-0.5 border border-neutral-700 bg-neutral-100/5 text-neutral-300">
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <div>
-                          <span className="font-mono font-medium text-neutral-200">{p.title}</span>
-                          <span className="text-neutral-500 block mt-0.5 leading-snug">{p.desc}</span>
-                        </div>
-                      </motion.li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {DETECTION_CARDS.map((card, i) => (
+                <DetectionCard key={card.id} card={card} index={i} />
+              ))}
             </div>
           </section>
 
-          {/* ===== Result ===== */}
+          {/* ===== SCAN RESULTS ===== */}
           {result && !scanning && (
-            <ResultView result={result} onExport={exportJson} onClear={clearResults} />
+            <ResultDashboard result={result} onExport={exportJson} onClear={clearResults} />
           )}
 
-          {/* ===== Saved scans (logged in) ===== */}
+          {/* ===== SAVED SCANS (logged in) ===== */}
           {session?.user && (
-            <section className="mt-8">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-mono text-neutral-300 flex items-center gap-2">
-                  <Database className="w-3.5 h-3.5" />
-                  SAVED SCANS <span className="text-neutral-600">({savedScans.length})</span>
+            <section className="mt-12">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
+                  <Database className="w-4 h-4 text-cyan-300" />
+                  Saved Scans <span className="text-white/40 text-sm">({savedScans.length})</span>
                 </h3>
                 {savedScans.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearSavedScans} className="text-xs text-neutral-500 hover:text-red-400">
+                  <Button variant="ghost" size="sm" onClick={clearSavedScans} className="text-xs text-white/50 hover:text-red-400">
                     <Trash2 className="w-3 h-3 mr-1" />
                     Clear all
                   </Button>
                 )}
               </div>
               {loadingSaved ? (
-                <div className="text-xs font-mono text-neutral-500">Loading…</div>
+                <div className="text-xs font-mono text-white/40">Loading…</div>
               ) : savedScans.length === 0 ? (
-                <div className="hud-card hud-brackets-bottom p-5 text-center border-dashed border-neutral-800">
-                  <p className="text-xs font-mono text-neutral-500">
+                <div className="glass-panel rounded-xl p-5 text-center border-dashed border-white/10">
+                  <p className="text-xs text-white/50">
                     No saved scans yet. Run a scan while logged in to persist it here.
                   </p>
                 </div>
@@ -582,40 +565,11 @@ export default function Home() {
                   {savedScans.slice(0, 9).map((s, i) => {
                     const counts = severityCount(s.findings);
                     return (
-                      <div
-                        key={i}
-                        className="hud-card hud-brackets-bottom p-3 cursor-pointer hover:border-neutral-500 transition"
-                        onClick={() => {
-                          setResult(s);
-                          setStage(SCANNER_STAGES.length);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <Badge variant="outline" className="text-[10px] font-mono border-neutral-700 text-neutral-300">
-                            {s.findings.length} found
-                          </Badge>
-                          <Badge
-                            className={`text-[10px] font-mono ${
-                              counts.critical > 0
-                                ? "bg-red-500/90 text-white"
-                                : counts.high > 0
-                                ? "bg-orange-500/90 text-white"
-                                : "bg-neutral-200 text-black"
-                            }`}
-                          >
-                            {counts.critical > 0
-                              ? `${counts.critical} CRIT`
-                              : counts.high > 0
-                              ? `${counts.high} HIGH`
-                              : "CLEAN"}
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] font-mono truncate text-neutral-400">{s.targetUrl}</p>
-                        <p className="text-[10px] font-mono text-neutral-600 mt-1">
-                          {(s.durationMs / 1000).toFixed(1)}s · {s.fetchedBytes}b · {s.scriptCount}js
-                        </p>
-                      </div>
+                      <HistoryCard key={i} scan={s} counts={counts} onClick={() => {
+                        setResult(s);
+                        setStage(SCAN_STAGES.length - 1);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }} />
                     );
                   })}
                 </div>
@@ -623,102 +577,22 @@ export default function Home() {
             </section>
           )}
 
-          {/* ===== Session history ===== */}
+          {/* ===== SESSION HISTORY ===== */}
           {sessionHistory.length > 0 && !scanning && (
-            <section className="mt-8">
-              <h3 className="text-sm font-mono text-neutral-300 flex items-center gap-2 mb-3">
-                <Activity className="w-3.5 h-3.5" />
-                SESSION LOG <span className="text-neutral-600">({sessionHistory.length})</span>
+            <section className="mt-12">
+              <h3 className="text-base font-semibold tracking-tight flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-violet-300" />
+                Session History <span className="text-white/40 text-sm">({sessionHistory.length})</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sessionHistory.map((h, i) => {
                   const counts = severityCount(h.findings);
                   return (
-                    <div
-                      key={i}
-                      className="hud-card hud-brackets-bottom p-3 cursor-pointer hover:border-neutral-500 transition"
-                      onClick={() => {
-                        setResult(h);
-                        setStage(SCANNER_STAGES.length);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge variant="outline" className="text-[10px] font-mono border-neutral-700 text-neutral-300">
-                          {h.findings.length} found
-                        </Badge>
-                        <Badge
-                          className={`text-[10px] font-mono ${
-                            counts.critical > 0
-                              ? "bg-red-500/90 text-white"
-                              : counts.high > 0
-                              ? "bg-orange-500/90 text-white"
-                              : "bg-neutral-200 text-black"
-                          }`}
-                        >
-                          {counts.critical > 0
-                            ? `${counts.critical} CRIT`
-                            : counts.high > 0
-                            ? `${counts.high} HIGH`
-                            : "CLEAN"}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] font-mono truncate text-neutral-400">{h.targetUrl}</p>
-                      <p className="text-[10px] font-mono text-neutral-600 mt-1">
-                        {(h.durationMs / 1000).toFixed(1)}s · {h.fetchedBytes}b · {h.scriptCount}js
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* ===== Empty state ===== */}
-          {!result && !scanning && sessionHistory.length === 0 && (
-            <section className="mt-6">
-              <div className="grid md:grid-cols-3 gap-4 mb-8">
-                {FEATURE_CARDS.map((c, i) => (
-                  <motion.div
-                    key={c.title}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 * i }}
-                  >
-                    <div className="hud-card hud-brackets-bottom p-4 hover:border-neutral-500 transition h-full">
-                      <div className="w-8 h-8 border border-neutral-700 bg-neutral-100/5 flex items-center justify-center mb-2">
-                        <c.icon className="w-3.5 h-3.5 text-neutral-300" />
-                      </div>
-                      <h4 className="text-xs font-mono text-neutral-200 tracking-wider">
-                        {c.title}
-                      </h4>
-                      <p className="text-xs text-neutral-500 mt-1 leading-snug">{c.desc}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="mb-3 flex items-center gap-2">
-                <Cpu className="w-3.5 h-3.5 text-neutral-300" />
-                <h3 className="text-sm font-mono text-neutral-300">DETECTION MATRIX</h3>
-              </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                {Object.entries(CATEGORY_META).map(([k, v], i) => {
-                  const Icon = CATEGORY_ICONS[k as keyof typeof CATEGORY_ICONS] ?? Bug;
-                  return (
-                    <motion.div
-                      key={k}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.03 * i }}
-                      className="hud-card hud-brackets-bottom p-3 hover:border-neutral-500 transition group"
-                    >
-                      <Icon className="w-3.5 h-3.5 text-neutral-300 mb-2 group-hover:scale-110 transition" />
-                      <div className="text-xs font-mono font-medium text-neutral-200">{v.label}</div>
-                      <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
-                        {v.description}
-                      </div>
-                    </motion.div>
+                    <HistoryCard key={i} scan={h} counts={counts} onClick={() => {
+                      setResult(h);
+                      setStage(SCAN_STAGES.length - 1);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }} />
                   );
                 })}
               </div>
@@ -726,12 +600,12 @@ export default function Home() {
           )}
         </div>
 
-        {/* Footer strip */}
-        <footer className="border-t border-neutral-800/60 bg-black/40 backdrop-blur-sm mt-10">
-          <div className="px-6 py-3 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-neutral-600">
+        {/* Footer */}
+        <footer className="border-t border-white/5 bg-black/30 backdrop-blur-md mt-12">
+          <div className="px-6 py-4 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-white/40">
             <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 animate-pulse" />
-              LEAKGUARD // OP-CONSOLE // BOUNDED SCANNER
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              LEAKGUARD · BOUNDED SCANNER · NO POLLING · NO INFINITE LOOPS
             </span>
             <span>
               {session?.user ? `OPERATOR: ${session.user.email}` : "GUEST MODE — SCANS NOT PERSISTED"}
@@ -743,61 +617,261 @@ export default function Home() {
   );
 }
 
-// ---------- Matrix rain removed — replaced by 3D wireframe background ----------
-
-// ---------- Scan radar (during scan) ----------
-function ScanRadar() {
+// ============================================================================
+// Sidebar content (shared by desktop + tablet)
+// ============================================================================
+function SidebarContent({ clock, session }: { clock: string; session: any }) {
   return (
-    <div className="relative w-[220px] h-[220px] mx-auto">
-      <div className="absolute inset-0 border border-neutral-700" />
-      <div className="absolute inset-5 border border-neutral-800" />
-      <div className="absolute inset-10 border border-neutral-800/60" />
-      <div className="absolute inset-[60px] border border-neutral-800/40" />
+    <>
+      {/* Logo */}
+      <div className="px-4 lg:px-5 py-5 border-b border-white/5">
+        <div className="flex items-center gap-2.5">
+          <motion.div
+            initial={{ rotate: -8, opacity: 0 }}
+            animate={{ rotate: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="w-9 h-9 rounded-xl border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center shrink-0"
+          >
+            <ShieldAlert className="w-4 h-4 text-cyan-300" />
+          </motion.div>
+          <div className="hidden lg:block">
+            <h1 className="text-sm font-bold tracking-tight leading-none">
+              <span className="text-white">LEAK</span>
+              <span className="text-cyan-300">GUARD</span>
+            </h1>
+            <p className="text-[9px] text-white/40 mt-1 font-mono uppercase tracking-[0.2em]">
+              AI Security Scanner
+            </p>
+          </div>
+        </div>
+      </div>
 
-      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-neutral-700/40 -translate-x-1/2" />
-      <div className="absolute top-1/2 left-0 right-0 h-px bg-neutral-700/40 -translate-y-1/2" />
+      {/* Status block */}
+      <div className="px-4 lg:px-5 py-4 border-b border-white/5 space-y-2">
+        <StatusRow icon={Wifi} label="SYS" value="ONLINE" color="text-cyan-300" pulse />
+        <StatusRow label="UTC" value={clock || "--:--:--"} mono />
+        <StatusRow icon={Signal} label="CHN" value="STABLE" />
+      </div>
 
-      <div
-        className="absolute inset-0 animate-scan-sweep"
-        style={{
-          background:
-            "conic-gradient(from 0deg, transparent 0deg, rgba(220,220,220,0.4) 30deg, transparent 60deg, transparent 360deg)",
-          maskImage: "radial-gradient(circle, transparent 30%, black 30%)",
-          WebkitMaskImage: "radial-gradient(circle, transparent 30%, black 30%)",
-        }}
-      />
+      {/* Nav */}
+      <nav className="px-3 lg:px-3 py-4 flex-1 space-y-0.5">
+        <p className="hidden lg:block text-[9px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+          Sections
+        </p>
+        {NAV_ITEMS.map((n) => (
+          <a
+            key={n.label}
+            href={n.href}
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-white/60 hover:bg-white/5 hover:text-white transition group"
+          >
+            <n.icon className="w-4 h-4 text-white/40 group-hover:text-cyan-300 shrink-0" />
+            <span className="hidden lg:block flex-1 font-medium">{n.label}</span>
+            <ChevronRight className="hidden lg:block w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </a>
+        ))}
+      </nav>
 
-      <motion.div
-        animate={{ scale: [1, 1.4, 1], opacity: [1, 0.4, 1] }}
-        transition={{ duration: 1.8, repeat: Infinity }}
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-neutral-100 shadow-[0_0_20px_4px_rgba(220,220,220,0.7)]"
-      />
+      {/* Operator */}
+      <div className="px-3 lg:px-3 py-3 border-t border-white/5">
+        <p className="hidden lg:block text-[9px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+          Operator
+        </p>
+        <AuthButton />
+      </div>
 
-      {[
-        { x: "30%", y: "25%", d: 0 },
-        { x: "70%", y: "40%", d: 0.4 },
-        { x: "55%", y: "70%", d: 0.8 },
-        { x: "20%", y: "60%", d: 1.2 },
-        { x: "80%", y: "75%", d: 1.6 },
-      ].map((p, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-1.5 h-1.5 rounded-full bg-neutral-300"
-          style={{ left: p.x, top: p.y }}
-          animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
-          transition={{ duration: 2.4, repeat: Infinity, delay: p.d }}
-        />
-      ))}
+      {/* Footer */}
+      <div className="px-4 lg:px-5 py-3 border-t border-white/5 text-[9px] font-mono text-white/30 flex items-center justify-between">
+        <span className="flex items-center gap-1">
+          <CircuitBoard className="w-2.5 h-2.5" />
+          <span className="hidden lg:inline">v1.0</span>
+        </span>
+        <span className="hidden lg:inline">NO-LOOP</span>
+      </div>
+    </>
+  );
+}
 
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <Radar className="w-6 h-6 text-neutral-500/30" />
+function StatusRow({
+  icon: Icon,
+  label,
+  value,
+  color = "text-white/70",
+  mono = false,
+  pulse = false,
+}: {
+  icon?: LucideIcon;
+  label: string;
+  value: string;
+  color?: string;
+  mono?: boolean;
+  pulse?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between text-[10px] font-mono">
+      <span className="text-white/40 uppercase tracking-wider flex items-center gap-1.5">
+        {Icon && <Icon className="w-2.5 h-2.5" />}
+        <span className="hidden lg:inline">{label}</span>
+      </span>
+      <span className={`flex items-center gap-1.5 ${color} ${mono ? "tabular-nums" : ""}`}>
+        {pulse && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />}
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// Detection card — interactive with hover glow + severity/status indicator
+// ============================================================================
+function DetectionCard({
+  card,
+  index,
+}: {
+  card: typeof DETECTION_CARDS[number];
+  index: number;
+}) {
+  const accentColor = card.accent === "cyan" ? "#22d3ee" : "#a78bfa";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4, delay: index * 0.05 }}
+      className={`glass-panel glass-panel-hover rounded-xl p-4 cursor-default group ${card.accent === "violet" ? "glass-panel-violet" : ""}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div
+          className="w-10 h-10 rounded-lg border flex items-center justify-center transition group-hover:scale-110"
+          style={{
+            borderColor: `${accentColor}40`,
+            background: `${accentColor}10`,
+          }}
+        >
+          <card.icon className="w-4 h-4" style={{ color: accentColor }} />
+        </div>
+        <div className="text-[9px] font-mono text-white/30 px-2 py-0.5 rounded border border-white/10">
+          ACTIVE
+        </div>
+      </div>
+      <h4 className="text-sm font-semibold mb-1">{card.title}</h4>
+      <p className="text-xs text-white/50 leading-snug mb-3">{card.description}</p>
+      <div className="space-y-1.5">
+        {card.examples.slice(0, 3).map((ex) => (
+          <div key={ex} className="text-[10px] font-mono text-white/40 truncate flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full" style={{ background: accentColor }} />
+            {ex}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 pt-3 border-t border-white/5 text-[10px] font-mono text-white/40 flex items-center justify-between">
+        <span>coverage</span>
+        <span style={{ color: accentColor }}>{card.coverage}</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// Scan progress — 6-stage animated
+// ============================================================================
+function ScanProgress({ currentStage }: { currentStage: number }) {
+  return (
+    <div className="glass-panel rounded-2xl p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center animate-pulse-glow-cyan">
+          <Radar className="w-5 h-5 text-cyan-300" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold tracking-tight">Scan in progress</h3>
+          <p className="text-xs text-white/50 font-mono">
+            Stage {Math.min(currentStage + 1, SCAN_STAGES.length)} of {SCAN_STAGES.length} · bounded execution
+          </p>
+        </div>
+      </div>
+
+      {/* Stage stepper */}
+      <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2">
+        {SCAN_STAGES.map((s, i) => {
+          const done = i < currentStage;
+          const active = i === currentStage;
+          const last = i === SCAN_STAGES.length - 1;
+          const Icon = s.icon;
+          const accentColor = s.accent === "cyan" ? "#22d3ee" : s.accent === "violet" ? "#a78bfa" : "#ffffff";
+          return (
+            <div key={s.id} className="flex items-center flex-1 min-w-0">
+              <div className="flex flex-col items-center gap-2 min-w-0 flex-1">
+                <motion.div
+                  initial={false}
+                  animate={{
+                    scale: active ? 1.15 : 1,
+                    opacity: done || active ? 1 : 0.4,
+                  }}
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl border flex items-center justify-center transition relative"
+                  style={{
+                    borderColor: done || active ? `${accentColor}80` : "rgba(255,255,255,0.1)",
+                    background: done || active ? `${accentColor}15` : "transparent",
+                    boxShadow: active ? `0 0 30px -6px ${accentColor}80` : "none",
+                  }}
+                >
+                  <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: done || active ? accentColor : "rgba(255,255,255,0.4)" }} />
+                  {active && (
+                    <motion.div
+                      className="absolute inset-0 rounded-xl border-2"
+                      style={{ borderColor: accentColor }}
+                      animate={{ opacity: [0.8, 0, 0.8], scale: [1, 1.25, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                  )}
+                </motion.div>
+                <span
+                  className="text-[9px] md:text-[10px] font-mono tracking-wider text-center"
+                  style={{ color: done || active ? accentColor : "rgba(255,255,255,0.3)" }}
+                >
+                  {s.label}
+                </span>
+              </div>
+              {!last && (
+                <div className="h-px flex-1 mx-2 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/10" />
+                  <motion.div
+                    initial={false}
+                    animate={{ width: done ? "100%" : "0%" }}
+                    transition={{ duration: 0.5 }}
+                    className="absolute inset-y-0 left-0 bg-cyan-400/60"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Current stage detail */}
+      <div className="glass-panel rounded-xl p-4 flex items-center gap-3">
+        <Loader2 className="w-4 h-4 text-cyan-300 animate-spin shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-mono text-white/70">
+            <span className="text-cyan-300">→</span> {SCAN_STAGES[Math.min(currentStage, SCAN_STAGES.length - 1)].label}
+          </p>
+          <p className="text-[11px] text-white/40 mt-0.5">
+            {currentStage === 0 && "Validating target URL against http(s) protocol and length limits."}
+            {currentStage === 1 && "Downloading HTML with 15s timeout and 1.5MB cap."}
+            {currentStage === 2 && "Running regex matchers across HTML and inline scripts."}
+            {currentStage === 3 && "Fetching up to 20 <script> sources, 10s each, 600KB cap."}
+            {currentStage === 4 && "Detecting AI-tool fingerprints in meta tags, comments, and JS."}
+            {currentStage === 5 && "Aggregating findings and ranking by severity."}
+          </p>
+        </div>
+        <span className="animate-blink text-cyan-300 font-mono">▌</span>
       </div>
     </div>
   );
 }
 
-// ---------- Result view ----------
-function ResultView({
+// ============================================================================
+// Result dashboard — premium glass + expandable findings
+// ============================================================================
+function ResultDashboard({
   result,
   onExport,
   onClear,
@@ -823,328 +897,383 @@ function ResultView({
     low: "bg-yellow-400",
     info: "bg-sky-500",
   };
+  const sevHex: Record<string, string> = {
+    critical: "#ef4444",
+    high: "#f97316",
+    medium: "#f59e0b",
+    low: "#facc15",
+    info: "#0ea5e9",
+  };
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.4 }}
+      className="mb-12"
     >
-      <div className="hud-card hud-brackets-bottom mb-6">
-        <div className="px-5 py-3 border-b border-neutral-800/60 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-neutral-300" />
-              <h3 className="font-mono text-xs text-neutral-200 tracking-wider">
-                MODULE_04 // SCAN_REPORT
-              </h3>
-            </div>
-            <p className="mt-1.5 font-mono text-xs break-all">
-              <span className="text-neutral-500">$ target:</span>{" "}
-              <span className="text-neutral-200">{result.targetUrl}</span>
-            </p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className="w-4 h-4 text-cyan-300" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">SCAN REPORT</span>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="sm" onClick={onExport} disabled={total === 0}
-              className="font-mono text-xs border-neutral-700 text-neutral-300 hover:bg-neutral-100/5">
-              <Download className="w-3.5 h-3.5 mr-1.5" />
-              JSON
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onClear} className="font-mono text-xs text-neutral-500">
-              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-              CLEAR
-            </Button>
-          </div>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+            {total === 0 ? "Target is clean" : `${total} ${total === 1 ? "finding" : "findings"} exposed`}
+          </h2>
+          <p className="text-sm text-white/50 mt-1 font-mono break-all">{result.targetUrl}</p>
         </div>
-
-        <div className="p-5">
-          {/* Severity stacked bar */}
-          {total > 0 && (
-            <div className="mb-4">
-              <div className="flex h-1.5 overflow-hidden bg-neutral-900">
-                {severities.map((s) =>
-                  counts[s] > 0 ? (
-                    <motion.div
-                      key={s}
-                      className={`${sevColors[s]}`}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(counts[s] / total) * 100}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  ) : null
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Summary stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
-            <Stat label="TOTAL" value={total} tone="bg-neutral-100/10 border border-neutral-700 text-neutral-200" />
-            <Stat label="CRITICAL" value={counts.critical} tone="bg-red-500/15 border border-red-500/40 text-red-300" />
-            <Stat label="HIGH" value={counts.high} tone="bg-orange-500/15 border border-orange-500/40 text-orange-300" />
-            <Stat label="MEDIUM" value={counts.medium} tone="bg-amber-500/15 border border-amber-500/40 text-amber-300" />
-            <Stat label="LOW/INFO" value={counts.low + counts.info} tone="bg-sky-500/15 border border-sky-500/40 text-sky-300" />
-          </div>
-
-          {/* Meta */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-            <Meta label="DURATION" value={`${(result.durationMs / 1000).toFixed(1)}s`} />
-            <Meta label="HTML BYTES" value={result.fetchedBytes.toLocaleString()} />
-            <Meta label="SCRIPTS" value={`${result.scriptCount}`} />
-            <Meta label="PATH PROBES" value={`${result.fileProbeCount}`} />
-          </div>
-
-          {/* Errors */}
-          {result.errors.length > 0 && (
-            <Alert className="mt-4 border-amber-500/40 bg-amber-500/5">
-              <Bug className="w-4 h-4 text-amber-500" />
-              <AlertTitle className="text-amber-400 font-mono text-xs">SCAN WARNINGS</AlertTitle>
-              <AlertDescription className="font-mono text-xs">
-                <ul className="list-disc pl-5 space-y-0.5 mt-1">
-                  {result.errors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Findings */}
-          {total === 0 ? (
-            <Alert className="mt-4 border-neutral-500/40 bg-neutral-100/5">
-              <Shield className="w-4 h-4 text-neutral-300" />
-              <AlertTitle className="text-neutral-200 font-mono text-xs">NO LEAKS DETECTED</AlertTitle>
-              <AlertDescription className="font-mono text-xs">
-                None of LeakGuard&apos;s pattern matchers or path probes returned a positive result.
-                Note: this is not a full security audit — only the well-known AI-tool leak patterns are checked.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Tabs defaultValue="all" className="mt-5">
-              <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap bg-black/40 border border-neutral-800">
-                <TabsTrigger value="all" className="font-mono text-xs data-[state=active]:text-neutral-100 data-[state=active]:bg-neutral-100/10">
-                  ALL ({total})
-                </TabsTrigger>
-                {Object.entries(grouped).map(([cat, list]) => (
-                  <TabsTrigger
-                    key={cat}
-                    value={cat}
-                    className="font-mono text-xs data-[state=active]:text-neutral-100 data-[state=active]:bg-neutral-100/10"
-                  >
-                    {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.label ?? cat} ({list.length})
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <TabsContent value="all" className="mt-4 space-y-3">
-                <AnimatePresence>
-                  {result.findings.map((f, i) => (
-                    <FindingCard key={f.id} finding={f} index={i} />
-                  ))}
-                </AnimatePresence>
-              </TabsContent>
-
-              {Object.entries(grouped).map(([cat, list]) => (
-                <TabsContent key={cat} value={cat} className="mt-4 space-y-3">
-                  <p className="text-xs text-neutral-500 font-mono mb-2 border-l-2 border-neutral-600 pl-3">
-                    {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.description}
-                  </p>
-                  <AnimatePresence>
-                    {list.map((f, i) => (
-                      <FindingCard key={f.id} finding={f} index={i} />
-                    ))}
-                  </AnimatePresence>
-                </TabsContent>
-              ))}
-            </Tabs>
-          )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onExport} disabled={total === 0}
+            className="border-white/10 text-white/70 hover:bg-white/5 hover:text-cyan-300 hover:border-cyan-400/30">
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Export JSON
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onClear} className="text-white/50 hover:text-white">
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Clear
+          </Button>
         </div>
       </div>
+
+      {/* Severity breakdown bar */}
+      {total > 0 && (
+        <div className="mb-4">
+          <div className="flex h-2 rounded-full overflow-hidden bg-white/5">
+            {severities.map((s) =>
+              counts[s] > 0 ? (
+                <motion.div
+                  key={s}
+                  className={`${sevColors[s]}`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(counts[s] / total) * 100}%` }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                />
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Premium stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <PremiumStat
+          label="Total"
+          value={total}
+          icon={Layers}
+          accent="white"
+        />
+        <PremiumStat
+          label="Critical"
+          value={counts.critical}
+          icon={AlertTriangle}
+          accent="red"
+        />
+        <PremiumStat
+          label="High"
+          value={counts.high}
+          icon={ShieldAlert}
+          accent="orange"
+        />
+        <PremiumStat
+          label="Medium"
+          value={counts.medium}
+          icon={AlertTriangle}
+          accent="amber"
+        />
+        <PremiumStat
+          label="Low / Info"
+          value={counts.low + counts.info}
+          icon={CheckCircle2}
+          accent="sky"
+        />
+      </div>
+
+      {/* Meta */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+        <MetaCard label="Duration" value={`${(result.durationMs / 1000).toFixed(1)}s`} />
+        <MetaCard label="HTML Bytes" value={result.fetchedBytes.toLocaleString()} />
+        <MetaCard label="Scripts" value={`${result.scriptCount}`} />
+        <MetaCard label="Path Probes" value={`${result.fileProbeCount}`} />
+      </div>
+
+      {/* Errors */}
+      {result.errors.length > 0 && (
+        <Alert className="mb-6 border-amber-500/40 bg-amber-500/5">
+          <Bug className="w-4 h-4 text-amber-500" />
+          <AlertTitle className="text-amber-400 font-mono text-xs">SCAN WARNINGS</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <ul className="list-disc pl-5 space-y-0.5 mt-1">
+              {result.errors.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Findings */}
+      {total === 0 ? (
+        <Alert className="border-cyan-400/40 bg-cyan-400/5">
+          <Shield className="w-4 h-4 text-cyan-300" />
+          <AlertTitle className="text-cyan-300 font-semibold">No leaks detected</AlertTitle>
+          <AlertDescription className="text-sm text-white/60">
+            None of LeakGuard&apos;s pattern matchers or path probes returned a positive result.
+            Note: this is not a full security audit — only the well-known AI-tool leak patterns are checked.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Tabs defaultValue="all" className="mt-2">
+          <TabsList className="bg-white/5 border border-white/10 rounded-lg p-1 h-auto flex-wrap justify-start overflow-x-auto">
+            <TabsTrigger value="all" className="text-xs data-[state=active]:bg-cyan-400/15 data-[state=active]:text-cyan-300">
+              All ({total})
+            </TabsTrigger>
+            {Object.entries(grouped).map(([cat, list]) => (
+              <TabsTrigger
+                key={cat}
+                value={cat}
+                className="text-xs data-[state=active]:bg-cyan-400/15 data-[state=active]:text-cyan-300"
+              >
+                {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.label ?? cat} ({list.length})
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="all" className="mt-4 space-y-2">
+            {result.findings.map((f, i) => (
+              <FindingRow key={f.id} finding={f} index={i} sevHex={sevHex} />
+            ))}
+          </TabsContent>
+
+          {Object.entries(grouped).map(([cat, list]) => (
+            <TabsContent key={cat} value={cat} className="mt-4 space-y-2">
+              <p className="text-xs text-white/50 mb-3 border-l-2 border-cyan-400/40 pl-3">
+                {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.description}
+              </p>
+              {list.map((f, i) => (
+                <FindingRow key={f.id} finding={f} index={i} sevHex={sevHex} />
+              ))}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </motion.section>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
+// ============================================================================
+// Premium stat card — glass + accent + icon
+// ============================================================================
+function PremiumStat({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  accent: "white" | "red" | "orange" | "amber" | "sky";
+}) {
+  const accentMap = {
+    white: { hex: "#ffffff", tailwind: "text-white" },
+    red: { hex: "#ef4444", tailwind: "text-red-400" },
+    orange: { hex: "#f97316", tailwind: "text-orange-400" },
+    amber: { hex: "#f59e0b", tailwind: "text-amber-400" },
+    sky: { hex: "#0ea5e9", tailwind: "text-sky-400" },
+  };
+  const a = accentMap[accent];
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.25 }}
-      className={`rounded-sm ${tone} px-3 py-2.5 flex items-center justify-between`}
+      transition={{ duration: 0.3 }}
+      className="glass-panel glass-panel-hover rounded-xl p-4 relative overflow-hidden"
     >
-      <span className="text-[10px] font-mono font-medium tracking-wider opacity-80">{label}</span>
-      <motion.span
-        key={value}
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-lg font-mono font-bold tabular-nums"
-      >
-        {value}
-      </motion.span>
-    </motion.div>
-  );
-}
-
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border border-neutral-800 bg-black/40 px-3 py-2">
-      <div className="text-[9px] uppercase tracking-wider text-neutral-500 font-mono">{label}</div>
-      <div className="text-sm font-mono mt-0.5 text-neutral-200">{value}</div>
-    </div>
-  );
-}
-
-function FindingCard({ finding, index }: { finding: Finding; index: number }) {
-  const sev = SEVERITY_META[finding.severity];
-  const sevBorder: Record<string, string> = {
-    critical: "border-l-red-500",
-    high: "border-l-orange-500",
-    medium: "border-l-amber-500",
-    low: "border-l-yellow-400",
-    info: "border-l-sky-500",
-  };
-  const sevGlow: Record<string, string> = {
-    critical: "hover:shadow-[0_0_25px_-8px_rgba(239,68,68,0.6)]",
-    high: "hover:shadow-[0_0_25px_-8px_rgba(249,115,22,0.6)]",
-    medium: "hover:shadow-[0_0_25px_-8px_rgba(245,158,11,0.5)]",
-    low: "hover:shadow-[0_0_25px_-8px_rgba(250,204,21,0.4)]",
-    info: "hover:shadow-[0_0_25px_-8px_rgba(14,165,233,0.5)]",
-  };
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(index * 0.04, 0.5) }}
-    >
-      <div className={`hud-card border-l-2 ${sevBorder[finding.severity]} border-neutral-800 ${sevGlow[finding.severity]} transition-all hover:border-neutral-600`}>
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`w-2 h-2 rounded-full ${sev.dot} shrink-0 animate-pulse`} />
-              <h4 className="font-mono text-sm font-medium leading-snug text-neutral-100">
-                {finding.title}
-              </h4>
-            </div>
-            <Badge className={`text-[10px] font-mono px-2 py-0.5 ${sev.badge}`}>
-              {sev.label}
-            </Badge>
-          </div>
-
-          <p className="text-xs text-neutral-500 leading-relaxed mb-3 font-sans">
-            {finding.description}
-          </p>
-
-          <div className="grid sm:grid-cols-2 gap-2 text-xs">
-            <div className="bg-black/60 border border-neutral-800 p-2">
-              <div className="text-[9px] uppercase tracking-wider text-neutral-500 font-mono mb-1">
-                EVIDENCE
-              </div>
-              <code className="font-mono text-[11px] break-all block text-neutral-300">
-                {finding.evidence}
-              </code>
-            </div>
-            <div className="bg-black/60 border border-neutral-800 p-2">
-              <div className="text-[9px] uppercase tracking-wider text-neutral-500 font-mono mb-1">
-                LOCATION
-              </div>
-              {finding.locationType === "url" ? (
-                <a
-                  href={finding.location}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="font-mono text-[11px] break-all text-neutral-300 hover:text-neutral-100 hover:underline inline-flex items-start gap-1"
-                >
-                  {finding.location}
-                  <ExternalLink className="w-3 h-3 shrink-0 mt-0.5" />
-                </a>
-              ) : (
-                <span className="font-mono text-[11px] break-all block text-neutral-300">
-                  {finding.location}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-3 p-2 border border-neutral-800 bg-neutral-100/5 text-xs">
-            <div className="text-[9px] uppercase tracking-wider text-neutral-300 font-mono font-medium mb-1 flex items-center gap-1">
-              <ChevronRight className="w-3 h-3" />
-              REMEDIATION
-            </div>
-            <p className="text-neutral-500 leading-relaxed font-sans">{finding.remediation}</p>
-          </div>
+      <div
+        className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-20"
+        style={{ background: a.hex }}
+      />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">{label}</p>
+          <motion.p
+            key={value}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}
+          >
+            {value}
+          </motion.p>
         </div>
+        <Icon className="w-4 h-4 opacity-50" style={{ color: a.hex }} />
       </div>
     </motion.div>
   );
 }
 
-// ---------- Constants ----------
+function MetaCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="glass-panel rounded-lg px-3 py-2.5">
+      <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono">{label}</div>
+      <div className="text-sm font-mono mt-0.5 text-white/80">{value}</div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Finding row — expandable
+// ============================================================================
+function FindingRow({
+  finding,
+  index,
+  sevHex,
+}: {
+  finding: Finding;
+  index: number;
+  sevHex: Record<string, string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const sev = SEVERITY_META[finding.severity];
+  const hex = sevHex[finding.severity] || "#ffffff";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.4) }}
+    >
+      <Collapsible
+        open={expanded}
+        onOpenChange={setExpanded}
+        className="glass-panel glass-panel-hover rounded-xl overflow-hidden"
+      >
+        <CollapsibleTrigger
+          className="w-full text-left p-4 flex items-start gap-3 cursor-pointer"
+          style={{ borderLeft: `2px solid ${hex}` }}
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <motion.span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: hex, boxShadow: `0 0 8px ${hex}` }}
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <h4 className="text-sm font-medium leading-snug text-white/90">{finding.title}</h4>
+          </div>
+          <Badge
+            className="text-[10px] font-mono px-2 py-0.5 shrink-0"
+            style={{ background: `${hex}20`, color: hex, border: `1px solid ${hex}60` }}
+          >
+            {sev.label}
+          </Badge>
+          <motion.div animate={{ rotate: expanded ? 180 : 0 }}>
+            <ChevronDown className="w-4 h-4 text-white/40 shrink-0" />
+          </motion.div>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-none data-[state=open]:animate-none">
+          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5">
+            <p className="text-xs text-white/60 leading-relaxed pt-3">{finding.description}</p>
+
+            <div className="grid sm:grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border border-white/10 bg-black/40 p-2.5">
+                <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono mb-1">
+                  Evidence
+                </div>
+                <code className="font-mono text-[11px] break-all block text-cyan-200/90">
+                  {finding.evidence}
+                </code>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/40 p-2.5">
+                <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono mb-1">
+                  Location
+                </div>
+                {finding.locationType === "url" ? (
+                  <a
+                    href={finding.location}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="font-mono text-[11px] break-all text-violet-300 hover:text-violet-200 hover:underline inline-flex items-start gap-1"
+                  >
+                    {finding.location}
+                    <ExternalLink className="w-3 h-3 shrink-0 mt-0.5" />
+                  </a>
+                ) : (
+                  <span className="font-mono text-[11px] break-all block text-cyan-200/90">
+                    {finding.location}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-2.5">
+              <div className="text-[9px] uppercase tracking-wider text-cyan-300 font-mono font-medium mb-1 flex items-center gap-1">
+                <ChevronRight className="w-3 h-3" />
+                Remediation
+              </div>
+              <p className="text-xs text-white/70 leading-relaxed">{finding.remediation}</p>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// History card (used for session + saved scans)
+// ============================================================================
+function HistoryCard({
+  scan,
+  counts,
+  onClick,
+}: {
+  scan: ScanResult;
+  counts: ReturnType<typeof severityCount>;
+  onClick: () => void;
+}) {
+  const hasCritical = counts.critical > 0;
+  const hasHigh = counts.high > 0;
+  const accentHex = hasCritical ? "#ef4444" : hasHigh ? "#f97316" : "#22d3ee";
+
+  return (
+    <div
+      onClick={onClick}
+      className="glass-panel glass-panel-hover rounded-xl p-3.5 cursor-pointer"
+      style={{ borderLeft: `2px solid ${accentHex}` }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <Badge variant="outline" className="text-[10px] font-mono border-white/10 text-white/70">
+          {scan.findings.length} found
+        </Badge>
+        <Badge
+          className="text-[10px] font-mono"
+          style={{
+            background: `${accentHex}25`,
+            color: accentHex,
+            border: `1px solid ${accentHex}60`,
+          }}
+        >
+          {hasCritical ? `${counts.critical} CRIT` : hasHigh ? `${counts.high} HIGH` : "CLEAN"}
+        </Badge>
+      </div>
+      <p className="text-xs font-mono truncate text-white/70">{scan.targetUrl}</p>
+      <p className="text-[10px] font-mono text-white/40 mt-1">
+        {(scan.durationMs / 1000).toFixed(1)}s · {scan.fetchedBytes}b · {scan.scriptCount}js
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
 const NAV_ITEMS = [
-  { label: "TARGET", icon: Crosshair, href: "#" },
-  { label: "VERIFICATION", icon: Box, href: "#verification" },
-  { label: "REPORT", icon: FileWarning, href: "#report" },
-  { label: "HISTORY", icon: Activity, href: "#history" },
-  { label: "DETECTION", icon: Fingerprint, href: "#matrix" },
-];
-
-const CATEGORY_ICONS = {
-  api_key: KeyRound,
-  secret: Lock,
-  ai_fingerprint: Fingerprint,
-  exposed_file: FileWarning,
-  debug_endpoint: Bug,
-  source_map: Map,
-  pii: Database,
-  misconfig: Cpu,
-};
-
-const FEATURE_CARDS = [
-  {
-    title: "BOUNDED & LOOP-FREE",
-    desc: "Single HTTP request, hard timeouts on every fetch, finite array iterations. Never hangs, never polls.",
-    icon: Lock,
-  },
-  {
-    title: "AI-TOOL AWARE",
-    desc: "Detects fingerprints for v0, Lovable, Bolt, Cursor, Claude, and ChatGPT in meta tags, comments, and JS.",
-    icon: Fingerprint,
-  },
-  {
-    title: "REAL SECRET PATTERNS",
-    desc: "AWS, OpenAI, Anthropic, Google AI, GitHub PAT, Stripe, Slack, JWTs, PEM keys, DB connection strings.",
-    icon: ShieldAlert,
-  },
-];
-
-const VERIFICATION_POINTS = [
-  {
-    title: "Fetch target HTML",
-    desc: "Hard 15s timeout, 1.5MB cap. Failures are logged, not retried.",
-    color: "#10b981",
-  },
-  {
-    title: "Extract & fetch scripts",
-    desc: "Up to 20 <script> sources, 10s each, 600KB cap per file.",
-    color: "#06b6d4",
-  },
-  {
-    title: "Pattern-match secrets",
-    desc: "AWS / OpenAI / Anthropic / Google AI / GitHub PAT / Stripe / Slack / JWT / PEM keys.",
-    color: "#ef4444",
-  },
-  {
-    title: "Probe 12 leak paths",
-    desc: "/.env · /.git/config · /.git/HEAD · /.DS_Store · /package.json · /actuator · more.",
-    color: "#f59e0b",
-  },
-  {
-    title: "Detect AI fingerprints",
-    desc: "v0 · Lovable · Bolt · Cursor · Claude · ChatGPT — in meta tags, comments, and JS.",
-    color: "#a78bfa",
-  },
-  {
-    title: "Hunt source maps",
-    desc: "Probes {script}.map and parses inline //# sourceMappingURL= annotations.",
-    color: "#34d399",
-  },
+  { label: "Target", icon: Crosshair, href: "#" },
+  { label: "Verification", icon: Box, href: "#verification" },
+  { label: "Detection", icon: Fingerprint, href: "#detection" },
+  { label: "Report", icon: FileWarning, href: "#report" },
+  { label: "History", icon: Activity, href: "#history" },
 ];

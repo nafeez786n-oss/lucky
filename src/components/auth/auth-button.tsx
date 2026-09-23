@@ -77,12 +77,12 @@ export function AuthButton() {
 
   if (session?.user) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100/10 border border-neutral-100/30">
-          <div className="w-6 h-6 rounded-full bg-neutral-100/30 border border-neutral-300/40 flex items-center justify-center">
-            <UserIcon className="w-3 h-3 text-neutral-400" />
+      <div className="flex items-center gap-2 w-full">
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-cyan-400/20 flex-1 min-w-0">
+          <div className="w-6 h-6 rounded-full bg-cyan-400/15 border border-cyan-400/40 flex items-center justify-center shrink-0">
+            <UserIcon className="w-3 h-3 text-cyan-300" />
           </div>
-          <span className="text-xs text-neutral-500 font-mono truncate max-w-[140px]">
+          <span className="text-[11px] text-white/70 font-mono truncate">
             {session.user.name ?? session.user.email}
           </span>
         </div>
@@ -90,10 +90,9 @@ export function AuthButton() {
           variant="ghost"
           size="sm"
           onClick={() => signOut({ redirect: false })}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-white/50 hover:text-red-300 hover:bg-red-400/5 shrink-0"
         >
-          <LogOut className="w-3.5 h-3.5 mr-1.5" />
-          Sign out
+          <LogOut className="w-3.5 h-3.5" />
         </Button>
       </div>
     );
@@ -104,19 +103,19 @@ export function AuthButton() {
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="bg-neutral-100/90 hover:bg-neutral-300 text-neutral-900 font-medium border border-neutral-400/40 shadow-[0_0_20px_-8px_rgba(220, 220, 220,0.5)]"
+          className="w-full lg:w-auto bg-white/5 hover:bg-cyan-400/10 text-white hover:text-cyan-300 font-medium border border-white/10 hover:border-cyan-400/40 backdrop-blur-md transition-all"
         >
           <LogIn className="w-3.5 h-3.5 mr-1.5" />
           Login
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[420px] bg-neutral-950/95 border-neutral-100/30 backdrop-blur-xl">
+      <DialogContent className="sm:max-w-[420px] bg-black/85 border-cyan-400/20 backdrop-blur-2xl">
         <DialogHeader>
-          <div className="w-12 h-12 rounded-xl bg-neutral-100/15 border border-neutral-100/30 flex items-center justify-center mb-2">
-            <ShieldCheck className="w-6 h-6 text-neutral-300" />
+          <div className="w-12 h-12 rounded-xl bg-cyan-400/10 border border-cyan-400/30 flex items-center justify-center mb-2 shadow-[0_0_25px_-8px_rgba(34,211,238,0.5)]">
+            <ShieldCheck className="w-6 h-6 text-cyan-300" />
           </div>
-          <DialogTitle className="text-foreground font-mono">
-            {mode === "login" ? "Access terminal" : "Create new operator"}
+          <DialogTitle className="text-foreground font-semibold tracking-tight">
+            {mode === "login" ? "Access console" : "Create operator account"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {mode === "login"
@@ -138,7 +137,7 @@ export function AuthButton() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="operator1"
-                  className="pl-9 bg-neutral-900/60 border-neutral-700"
+                  className="pl-9 bg-white/5 border-white/10"
                 />
               </div>
             </div>
@@ -156,7 +155,7 @@ export function AuthButton() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="operator@example.com"
-                className="pl-9 bg-neutral-900/60 border-neutral-700 font-mono text-sm"
+                className="pl-9 bg-white/5 border-white/10 font-mono text-sm"
                 autoComplete="email"
               />
             </div>
@@ -174,7 +173,7 @@ export function AuthButton() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="pl-9 bg-neutral-900/60 border-neutral-700 font-mono text-sm"
+                className="pl-9 bg-white/5 border-white/10 font-mono text-sm"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
               />
             </div>
@@ -183,7 +182,7 @@ export function AuthButton() {
           <Button
             type="submit"
             disabled={busy}
-            className="w-full bg-neutral-100 hover:bg-neutral-300 text-neutral-900 font-medium border border-neutral-400/40 shadow-[0_0_30px_-10px_rgba(220, 220, 220,0.7)]"
+            className="w-full bg-white hover:bg-white/90 text-black font-semibold border border-white/10 shadow-[0_0_30px_-10px_rgba(255,255,255,0.5)]"
           >
             {busy ? (
               <>

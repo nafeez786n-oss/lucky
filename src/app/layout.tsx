@@ -1,24 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "LeakGuard — AI-Website Leak Detector",
+  title: "LeakGuard — AI Security Scanner",
   description:
-    "Detect exposed API keys, hardcoded secrets, AI-tool fingerprints, exposed source maps, .env/.git leaks, and debug endpoints in any AI-generated website.",
+    "Premium AI security scanner. Detect exposed API keys, hardcoded secrets, AI-tool fingerprints, exposed source maps, .env/.git leaks, and debug endpoints in any AI-generated website.",
   keywords: [
     "leak detector",
     "API key scanner",
@@ -34,7 +38,7 @@ export const metadata: Metadata = {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "LeakGuard — AI-Website Leak Detector",
+    title: "LeakGuard — AI Security Scanner",
     description: "Bounded, loop-free scanner for API & data leaks in AI-generated websites.",
     url: "https://chat.z.ai",
     siteName: "LeakGuard",
@@ -55,7 +59,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
       >
         <Providers>
           {children}

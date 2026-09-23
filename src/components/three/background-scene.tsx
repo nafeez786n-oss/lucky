@@ -56,7 +56,8 @@ function DriftingShapes() {
   });
 
   // Greys from very dark to nearly white
-  const greys = ["#1a1a1a", "#2a2a2a", "#3a3a3a", "#4a4a4a", "#5a5a5a", "#6a6a6a", "#7a7a7a", "#909090"];
+  // Subtle dark greys with occasional cyan/violet tint for premium aesthetic
+  const greys = ["#1a1f2a", "#2a2a35", "#3a3a45", "#1f2535", "#3a3545", "#2a3040", "#5a6075", "#7080a0"];
   const opacities = [0.18, 0.22, 0.28, 0.32, 0.4];
 
   return (
