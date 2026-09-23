@@ -78,11 +78,11 @@ export function AuthButton() {
   if (session?.user) {
     return (
       <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30">
-          <div className="w-6 h-6 rounded-full bg-blue-500/30 border border-blue-400/40 flex items-center justify-center">
-            <UserIcon className="w-3 h-3 text-blue-300" />
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100/10 border border-neutral-100/30">
+          <div className="w-6 h-6 rounded-full bg-neutral-100/30 border border-neutral-300/40 flex items-center justify-center">
+            <UserIcon className="w-3 h-3 text-neutral-400" />
           </div>
-          <span className="text-xs text-blue-200 font-mono truncate max-w-[140px]">
+          <span className="text-xs text-neutral-500 font-mono truncate max-w-[140px]">
             {session.user.name ?? session.user.email}
           </span>
         </div>
@@ -104,16 +104,16 @@ export function AuthButton() {
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="bg-blue-500/90 hover:bg-blue-400 text-blue-950 font-medium border border-blue-300/40 shadow-[0_0_20px_-8px_rgba(59, 130, 246,0.5)]"
+          className="bg-neutral-100/90 hover:bg-neutral-300 text-neutral-900 font-medium border border-neutral-400/40 shadow-[0_0_20px_-8px_rgba(220, 220, 220,0.5)]"
         >
           <LogIn className="w-3.5 h-3.5 mr-1.5" />
           Login
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[420px] bg-slate-950/95 border-blue-500/30 backdrop-blur-xl">
+      <DialogContent className="sm:max-w-[420px] bg-neutral-950/95 border-neutral-100/30 backdrop-blur-xl">
         <DialogHeader>
-          <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center mb-2">
-            <ShieldCheck className="w-6 h-6 text-blue-400" />
+          <div className="w-12 h-12 rounded-xl bg-neutral-100/15 border border-neutral-100/30 flex items-center justify-center mb-2">
+            <ShieldCheck className="w-6 h-6 text-neutral-300" />
           </div>
           <DialogTitle className="text-foreground font-mono">
             {mode === "login" ? "Access terminal" : "Create new operator"}
@@ -138,7 +138,7 @@ export function AuthButton() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="operator1"
-                  className="pl-9 bg-slate-900/60 border-slate-700"
+                  className="pl-9 bg-neutral-900/60 border-neutral-700"
                 />
               </div>
             </div>
@@ -156,7 +156,7 @@ export function AuthButton() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="operator@example.com"
-                className="pl-9 bg-slate-900/60 border-slate-700 font-mono text-sm"
+                className="pl-9 bg-neutral-900/60 border-neutral-700 font-mono text-sm"
                 autoComplete="email"
               />
             </div>
@@ -174,7 +174,7 @@ export function AuthButton() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="pl-9 bg-slate-900/60 border-slate-700 font-mono text-sm"
+                className="pl-9 bg-neutral-900/60 border-neutral-700 font-mono text-sm"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
               />
             </div>
@@ -183,7 +183,7 @@ export function AuthButton() {
           <Button
             type="submit"
             disabled={busy}
-            className="w-full bg-blue-500 hover:bg-blue-400 text-blue-950 font-medium border border-blue-300/40 shadow-[0_0_30px_-10px_rgba(59, 130, 246,0.7)]"
+            className="w-full bg-neutral-100 hover:bg-neutral-300 text-neutral-900 font-medium border border-neutral-400/40 shadow-[0_0_30px_-10px_rgba(220, 220, 220,0.7)]"
           >
             {busy ? (
               <>
@@ -204,14 +204,14 @@ export function AuthButton() {
           </Button>
         </form>
 
-        <div className="text-center text-xs text-muted-foreground pt-2 border-t border-slate-800">
+        <div className="text-center text-xs text-muted-foreground pt-2 border-t border-neutral-800">
           {mode === "login" ? (
             <>
               No operator account?{" "}
               <button
                 type="button"
                 onClick={() => setMode("register")}
-                className="text-blue-400 hover:underline font-medium"
+                className="text-neutral-300 hover:underline font-medium"
               >
                 Create one
               </button>
@@ -222,7 +222,7 @@ export function AuthButton() {
               <button
                 type="button"
                 onClick={() => setMode("login")}
-                className="text-blue-400 hover:underline font-medium"
+                className="text-neutral-300 hover:underline font-medium"
               >
                 Sign in
               </button>

@@ -40,15 +40,16 @@ import * as THREE from "three";
 // Extras: grid floor, multi-direction scan rays, floating background shapes
 // ============================================================================
 
+// Strict black/grey/white palette: 8 distinct shades so models stay distinguishable by shape
 const ORBIT_CATS = [
-  { id: "key",   label: "API KEYS",     color: "#3b82f6" },  // primary blue
-  { id: "lock",  label: "SECRETS",      color: "#1e40af" },  // deep navy
-  { id: "fp",    label: "AI FINGERPRINT", color: "#93c5fd" }, // light blue
-  { id: "doc",   label: "EXPOSED FILES", color: "#ffffff" }, // pure white
-  { id: "pyr",   label: "SOURCE MAPS",  color: "#06b6d4" }, // cyan
-  { id: "ava",   label: "PII",          color: "#67e8f9" }, // light cyan
-  { id: "bug",   label: "DEBUG ROUTES", color: "#38bdf8" }, // sky blue
-  { id: "gear",  label: "MISCONFIG",    color: "#60a5fa" }, // blue-400
+  { id: "key",   label: "API KEYS",     color: "#ffffff" },  // pure white
+  { id: "lock",  label: "SECRETS",      color: "#2a2a2a" },  // very dark grey
+  { id: "fp",    label: "AI FINGERPRINT", color: "#d4d4d4" }, // light grey
+  { id: "doc",   label: "EXPOSED FILES", color: "#9a9a9a" }, // mid grey
+  { id: "pyr",   label: "SOURCE MAPS",  color: "#6a6a6a" },  // darker grey
+  { id: "ava",   label: "PII",          color: "#e8e8e8" }, // very light grey
+  { id: "bug",   label: "DEBUG ROUTES", color: "#4a4a4a" }, // grey
+  { id: "gear",  label: "MISCONFIG",    color: "#b8b8b8" }, // soft grey
 ];
 
 // ============================================================================
@@ -84,18 +85,18 @@ function Centerpiece() {
       {/* Outer icosahedron wireframe */}
       <group ref={outer}>
         <Icosahedron args={[1.55, 1]}>
-          <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.42} />
+          <meshBasicMaterial color="#e5e5e5" wireframe transparent opacity={0.42} />
         </Icosahedron>
         {/* Outer halo */}
         <Sphere args={[1.78, 32, 32]}>
-          <meshBasicMaterial color="#3b82f6" transparent opacity={0.035} side={THREE.BackSide} />
+          <meshBasicMaterial color="#e5e5e5" transparent opacity={0.035} side={THREE.BackSide} />
         </Sphere>
       </group>
 
       {/* Mid octahedron wireframe (counter-rotating) */}
       <group ref={mid}>
         <Octahedron args={[1.0, 0]}>
-          <meshBasicMaterial color="#60a5fa" wireframe transparent opacity={0.55} />
+          <meshBasicMaterial color="#bbbbbb" wireframe transparent opacity={0.55} />
         </Octahedron>
       </group>
 
@@ -109,8 +110,8 @@ function Centerpiece() {
         ].map((p, i) => (
           <Tetrahedron key={i} args={[0.18, 0]} position={p as [number, number, number]}>
             <meshStandardMaterial
-              color="#3b82f6"
-              emissive="#3b82f6"
+              color="#e5e5e5"
+              emissive="#e5e5e5"
               emissiveIntensity={0.8}
               wireframe
             />
@@ -122,7 +123,7 @@ function Centerpiece() {
       <Sphere ref={core} args={[0.42, 32, 32]}>
         <meshStandardMaterial
           color="#0f172a"
-          emissive="#3b82f6"
+          emissive="#e5e5e5"
           emissiveIntensity={2.2}
           roughness={0.25}
           metalness={0.7}
@@ -131,7 +132,7 @@ function Centerpiece() {
 
       {/* Core halo */}
       <Sphere args={[0.62, 32, 32]}>
-        <meshBasicMaterial color="#3b82f6" transparent opacity={0.12} />
+        <meshBasicMaterial color="#e5e5e5" transparent opacity={0.12} />
       </Sphere>
     </group>
   );
@@ -517,7 +518,7 @@ function ScanRays() {
         <mesh key={i} position={r.pos} rotation={r.rot}>
           <cylinderGeometry args={[0.012, 0.001, 1.8, 8, 1, true]} />
           <meshBasicMaterial
-            color="#3b82f6"
+            color="#e5e5e5"
             transparent
             opacity={0.32}
             blending={THREE.AdditiveBlending}
@@ -540,10 +541,10 @@ function GridFloor() {
         args={[20, 20]}
         cellSize={0.5}
         cellThickness={0.5}
-        cellColor="#1e3a8a"
+        cellColor="#1a1a1a"
         sectionSize={2.5}
         sectionThickness={1}
-        sectionColor="#3b82f6"
+        sectionColor="#e5e5e5"
         fadeDistance={18}
         fadeStrength={1.5}
         infiniteGrid
@@ -600,7 +601,7 @@ function FloatingShape({
   });
 
   const common = (
-    <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.28} />
+    <meshBasicMaterial color="#e5e5e5" wireframe transparent opacity={0.28} />
   );
 
   return (
@@ -636,10 +637,10 @@ export function LeakGuardScene() {
       <Suspense fallback={<SceneFallback />}>
         {/* Lighting */}
         <ambientLight intensity={0.5} />
-        <pointLight position={[5, 5, 5]} intensity={1.8} color="#3b82f6" />
-        <pointLight position={[-5, -2, 4]} intensity={1} color="#93c5fd" />
-        <pointLight position={[0, 6, -4]} intensity={0.6} color="#60a5fa" />
-        <directionalLight position={[2, 4, 3]} intensity={0.7} color="#3b82f6" />
+        <pointLight position={[5, 5, 5]} intensity={1.8} color="#e5e5e5" />
+        <pointLight position={[-5, -2, 4]} intensity={1} color="#888888" />
+        <pointLight position={[0, 6, -4]} intensity={0.6} color="#bbbbbb" />
+        <directionalLight position={[2, 4, 3]} intensity={0.7} color="#e5e5e5" />
 
         {/* Centerpiece + scan rays */}
         <Centerpiece />
