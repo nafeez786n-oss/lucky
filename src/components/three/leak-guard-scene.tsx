@@ -8,415 +8,615 @@ import {
   Float,
   Billboard,
   Text,
-  RoundedBox,
-  Line,
+  Icosahedron,
+  Octahedron,
+  Tetrahedron,
+  Dodecahedron,
+  Torus,
+  Cone,
   Cylinder,
   Box,
+  Sphere,
   Plane,
-  Torus,
+  Line,
+  Grid,
 } from "@react-three/drei";
-import type { Mesh, Group, MeshStandardMaterial } from "three";
+import type { Mesh, Group } from "three";
 import * as THREE from "three";
 
 // ============================================================================
-// LeakGuard 3D Scene — "Scanning a website"
+// LeakGuard 3D Scene — v5 "Constellation"
 //
-// Visual narrative:
-//   1. A 3D browser window mockup floats in space (the target site)
-//   2. The page shows a wireframe layout of typical website sections
-//   3. A vertical emerald scan beam sweeps left-to-right across the page
-//   4. Leak markers (red/amber) sit at fixed positions on the page surface
-//      — when the scan beam crosses each one, it pulses brightly
-//   5. Connection beams extend from each leak marker outward to floating
-//      category labels ("AWS Key", ".env", "source map", etc.)
-//   6. Particles drift upward from the page surface (extracted secrets)
+// Centerpiece: nested wireframe polyhedra (icosahedron + octahedron + core)
+// 8 detailed 3D models orbit on tilted rings, each representing one leak category:
+//   - Key (API keys)
+//   - Lock (Secrets)
+//   - Fingerprint (AI fingerprints)
+//   - Document (Exposed files)
+//   - Pyramid (Source maps)
+//   - Avatar (PII)
+//   - Bug (Debug endpoints)
+//   - Gear (Misconfig)
+// Extras: grid floor, multi-direction scan rays, floating background shapes
 // ============================================================================
 
-// ---------- Page leak markers ----------
-interface LeakMarker {
-  id: string;
-  label: string;
-  color: string;
-  // x,y position in page-local 2D coords (z is depth, will be set later)
-  position: [number, number];
-  description: string;
-}
-
-const LEAK_MARKERS: LeakMarker[] = [
-  { id: "aws",   label: "AWS KEY",     color: "#ef4444", position: [-1.1,  0.6], description: "AKIA…" },
-  { id: "env",   label: ".env",        color: "#f97316", position: [ 0.6,  0.7], description: "/.env 200" },
-  { id: "oai",   label: "OPENAI",     color: "#ef4444", position: [ 1.1, -0.1], description: "sk-…" },
-  { id: "map",   label: "SRC MAP",     color: "#06b6d4", position: [-0.9, -0.5], description: ".js.map" },
-  { id: "git",   label: ".git/",       color: "#f59e0b", position: [ 0.1, -0.7], description: "/.git 200" },
-  { id: "ai",    label: "v0 / LOVABLE", color: "#10b981", position: [ 1.2,  0.4], description: "meta tag" },
-  { id: "jwt",   label: "JWT",         color: "#a78bfa", position: [-0.2,  0.05], description: "eyJ…" },
-  { id: "log",   label: "CONSOLE.LOG", color: "#fbbf24", position: [ 0.85, -0.55], description: "12 hits" },
+const ORBIT_CATS = [
+  { id: "key",   label: "API KEYS",     color: "#ef4444" },
+  { id: "lock",  label: "SECRETS",      color: "#f97316" },
+  { id: "fp",    label: "AI FINGERPRINT", color: "#10b981" },
+  { id: "doc",   label: "EXPOSED FILES", color: "#f59e0b" },
+  { id: "pyr",   label: "SOURCE MAPS",  color: "#06b6d4" },
+  { id: "ava",   label: "PII",          color: "#a78bfa" },
+  { id: "bug",   label: "DEBUG ROUTES", color: "#fbbf24" },
+  { id: "gear",  label: "MISCONFIG",    color: "#34d399" },
 ];
 
-// Page size constants (used to clamp scan beam and place markers)
-const PAGE_WIDTH = 2.8;
-const PAGE_HEIGHT = 1.95;
-
 // ============================================================================
-// Component: BrowserWindow — the 3D target site mockup
+// Centerpiece: nested wireframe polyhedra + glowing core
 // ============================================================================
-function BrowserWindow() {
-  const groupRef = useRef<Group>(null);
+function Centerpiece() {
+  const outer = useRef<Group>(null);
+  const mid = useRef<Group>(null);
+  const core = useRef<Mesh>(null);
+  const tetraGroup = useRef<Group>(null);
 
   useFrame((_, delta) => {
-    if (groupRef.current) {
-      // gentle bob, no rotation (the panel is tilted toward camera by parent)
+    if (outer.current) {
+      outer.current.rotation.y += delta * 0.22;
+      outer.current.rotation.x += delta * 0.05;
+    }
+    if (mid.current) {
+      mid.current.rotation.y -= delta * 0.35;
+      mid.current.rotation.z += delta * 0.15;
+    }
+    if (tetraGroup.current) {
+      tetraGroup.current.rotation.y += delta * 0.5;
+    }
+    if (core.current) {
       const t = performance.now() * 0.001;
-      groupRef.current.position.y = Math.sin(t * 0.7) * 0.06;
+      const s = 1 + Math.sin(t * 2) * 0.06;
+      core.current.scale.setScalar(s);
     }
   });
 
   return (
-    <group ref={groupRef}>
-      {/* Outer browser frame (dark bezel) */}
-      <RoundedBox args={[3.2, 2.4, 0.08]} radius={0.06} smoothness={4}>
-        <meshStandardMaterial color="#0b1220" metalness={0.4} roughness={0.6} />
-      </RoundedBox>
-
-      {/* Top chrome bar (lighter slate) */}
-      <Box args={[3.2, 0.32, 0.04]} position={[0, 1.04, 0.04]}>
-        <meshStandardMaterial color="#1a2334" metalness={0.5} roughness={0.4} />
-      </Box>
-
-      {/* Traffic-light dots */}
-      {[
-        { x: -1.45, color: "#ef4444" },
-        { x: -1.32, color: "#f59e0b" },
-        { x: -1.19, color: "#10b981" },
-      ].map((d) => (
-        <mesh key={d.x} position={[d.x, 1.04, 0.08]}>
-          <sphereGeometry args={[0.05, 16, 16]} />
-          <meshStandardMaterial color={d.color} emissive={d.color} emissiveIntensity={0.4} />
-        </mesh>
-      ))}
-
-      {/* URL bar */}
-      <RoundedBox args={[2.4, 0.18, 0.04]} radius={0.03} smoothness={3} position={[0.25, 1.04, 0.08]}>
-        <meshStandardMaterial color="#0a0f1c" />
-      </RoundedBox>
-      <Text
-        position={[0.25, 1.04, 0.12]}
-        fontSize={0.075}
-        color="#10b981"
-        anchorX="center"
-        anchorY="middle"
-      >
-        https://target-site.com
-      </Text>
-
-      {/* Lock icon next to URL */}
-      <group position={[-1.02, 1.04, 0.12]}>
-        <Torus args={[0.04, 0.012, 8, 16]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.5} />
-        </Torus>
-        <Box args={[0.06, 0.05, 0.02]} position={[0, -0.05, 0]}>
-          <meshStandardMaterial color="#10b981" />
-        </Box>
+    <group>
+      {/* Outer icosahedron wireframe */}
+      <group ref={outer}>
+        <Icosahedron args={[1.55, 1]}>
+          <meshBasicMaterial color="#10b981" wireframe transparent opacity={0.42} />
+        </Icosahedron>
+        {/* Outer halo */}
+        <Sphere args={[1.78, 32, 32]}>
+          <meshBasicMaterial color="#10b981" transparent opacity={0.035} side={THREE.BackSide} />
+        </Sphere>
       </group>
 
-      {/* Page content area (the actual website being scanned) */}
-      {/* Page background */}
-      <Plane args={[PAGE_WIDTH, PAGE_HEIGHT]} position={[0, -0.1, 0.06]}>
-        <meshStandardMaterial color="#0f1729" metalness={0.2} roughness={0.8} />
-      </Plane>
+      {/* Mid octahedron wireframe (counter-rotating) */}
+      <group ref={mid}>
+        <Octahedron args={[1.0, 0]}>
+          <meshBasicMaterial color="#34d399" wireframe transparent opacity={0.55} />
+        </Octahedron>
+      </group>
 
-      {/* Wireframe website layout — typical sections */}
-      <WebsiteLayout />
+      {/* 4 small tetrahedrons at cardinal points (spinning) */}
+      <group ref={tetraGroup}>
+        {[
+          [1.1, 0, 0],
+          [-1.1, 0, 0],
+          [0, 1.1, 0],
+          [0, -1.1, 0],
+        ].map((p, i) => (
+          <Tetrahedron key={i} args={[0.18, 0]} position={p as [number, number, number]}>
+            <meshStandardMaterial
+              color="#10b981"
+              emissive="#10b981"
+              emissiveIntensity={0.8}
+              wireframe
+            />
+          </Tetrahedron>
+        ))}
+      </group>
 
-      {/* Scan beam (sweeps left-to-right) */}
-      <ScanBeam />
+      {/* Glowing core sphere */}
+      <Sphere ref={core} args={[0.42, 32, 32]}>
+        <meshStandardMaterial
+          color="#0f172a"
+          emissive="#10b981"
+          emissiveIntensity={2.2}
+          roughness={0.25}
+          metalness={0.7}
+        />
+      </Sphere>
 
-      {/* Leak markers on the page */}
-      {LEAK_MARKERS.map((m) => (
-        <LeakMarkerMesh key={m.id} marker={m} />
-      ))}
-
-      {/* Floating particles drifting up from the page */}
-      <ExtractedSecretParticles />
+      {/* Core halo */}
+      <Sphere args={[0.62, 32, 32]}>
+        <meshBasicMaterial color="#10b981" transparent opacity={0.12} />
+      </Sphere>
     </group>
   );
 }
 
 // ============================================================================
-// Component: WebsiteLayout — wireframe boxes representing typical website sections
+// 3D Models — one per leak category
 // ============================================================================
-function WebsiteLayout() {
-  // sections: [x, y, w, h, color]
-  const sections: [number, number, number, number, string][] = [
-    [-0.9, 0.7, 1.7, 0.18, "#1f2a40"], // top nav bar
-    [-0.9, 0.3, 0.85, 0.4, "#27375a"], // hero left
-    [0.05, 0.3, 0.85, 0.4, "#1e2a47"], // hero right
-    [-0.9, -0.15, 0.55, 0.4, "#1c2740"], // sidebar
-    [-0.25, -0.15, 1.15, 0.4, "#212d4a"], // content
-    [-0.9, -0.65, 1.8, 0.18, "#19233a"], // footer
+
+// Key (API Keys)
+function KeyModel({ color }: { color: string }) {
+  return (
+    <group rotation={[Math.PI / 2, 0, 0]}>
+      {/* Bow (handle ring) */}
+      <Torus args={[0.13, 0.025, 12, 24]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
+      </Torus>
+      {/* Shaft */}
+      <Cylinder args={[0.025, 0.025, 0.3, 16]} position={[0, -0.25, 0]} rotation={[0, 0, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} metalness={0.6} roughness={0.3} />
+      </Cylinder>
+      {/* Teeth */}
+      <Box args={[0.04, 0.04, 0.04]} position={[0.06, -0.38, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
+      </Box>
+      <Box args={[0.04, 0.04, 0.04]} position={[-0.06, -0.34, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
+      </Box>
+    </group>
+  );
+}
+
+// Lock (Secrets)
+function LockModel({ color }: { color: string }) {
+  return (
+    <group>
+      {/* Shackle */}
+      <Torus args={[0.08, 0.018, 12, 24, Math.PI]} position={[0, 0.12, 0]} rotation={[0, 0, Math.PI]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.5} roughness={0.4} />
+      </Torus>
+      {/* Body */}
+      <Box args={[0.22, 0.2, 0.12]} position={[0, -0.05, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} metalness={0.5} roughness={0.4} />
+      </Box>
+      {/* Keyhole */}
+      <Cylinder args={[0.018, 0.018, 0.02, 12]} position={[0, -0.05, 0.07]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#020617" />
+      </Cylinder>
+      <Box args={[0.015, 0.04, 0.02]} position={[0, -0.075, 0.07]}>
+        <meshStandardMaterial color="#020617" />
+      </Box>
+    </group>
+  );
+}
+
+// Fingerprint (AI Fingerprints)
+function FingerprintModel({ color }: { color: string }) {
+  return (
+    <group>
+      {[0.18, 0.13, 0.08, 0.03].map((r, i) => (
+        <Torus
+          key={i}
+          args={[r, 0.012, 8, 32]}
+          position={[0, 0, i * 0.008 - 0.012]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={0.6 - i * 0.08}
+            metalness={0.4}
+            roughness={0.5}
+          />
+        </Torus>
+      ))}
+    </group>
+  );
+}
+
+// Document (Exposed Files)
+function DocumentModel({ color }: { color: string }) {
+  return (
+    <group>
+      {/* Paper body */}
+      <Box args={[0.22, 0.28, 0.015]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} metalness={0.2} roughness={0.7} />
+      </Box>
+      {/* Folded corner */}
+      <mesh position={[0.075, 0.12, 0.012]} rotation={[0, 0, Math.PI / 4]}>
+        <planeGeometry args={[0.06, 0.06]} />
+        <meshStandardMaterial color="#020617" />
+      </mesh>
+      {/* Text lines */}
+      {[-0.04, 0, 0.04, 0.08].map((y, i) => (
+        <Box key={i} args={[0.14, 0.012, 0.005]} position={[0, y, 0.012]}>
+          <meshStandardMaterial color="#020617" />
+        </Box>
+      ))}
+    </group>
+  );
+}
+
+// Pyramid (Source Maps)
+function PyramidModel({ color }: { color: string }) {
+  return (
+    <group rotation={[0, 0, 0]}>
+      <Cone args={[0.18, 0.3, 4, 1]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.4} roughness={0.4} flatShading />
+      </Cone>
+      <mesh>
+        <coneGeometry args={[0.18, 0.3, 4, 1]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
+// Avatar (PII)
+function AvatarModel({ color }: { color: string }) {
+  return (
+    <group>
+      {/* Head */}
+      <Sphere args={[0.075, 24, 24]} position={[0, 0.1, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} metalness={0.4} roughness={0.4} />
+      </Sphere>
+      {/* Shoulders / body */}
+      <Cylinder args={[0.04, 0.13, 0.16, 16]} position={[0, -0.04, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} metalness={0.4} roughness={0.4} />
+      </Cylinder>
+    </group>
+  );
+}
+
+// Bug (Debug Endpoints)
+function BugModel({ color }: { color: string }) {
+  return (
+    <group>
+      {/* Body (two spheres) */}
+      <Sphere args={[0.1, 16, 16]} position={[0, 0, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.3} roughness={0.5} />
+      </Sphere>
+      <Sphere args={[0.06, 16, 16]} position={[0, 0.12, 0]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.3} roughness={0.5} />
+      </Sphere>
+      {/* Legs (3 per side) */}
+      {[-1, 0, 1].flatMap((s) =>
+        [-0.08, 0, 0.08].map((y, i) => (
+          <Cylinder
+            key={`${s}-${i}`}
+            args={[0.005, 0.005, 0.12, 6]}
+            position={[s * 0.06, y, 0]}
+            rotation={[0, 0, s * Math.PI / 4 + (i - 1) * 0.2]}
+          >
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} />
+          </Cylinder>
+        ))
+      )}
+      {/* Antennae */}
+      {[1, -1].map((s) => (
+        <Cylinder
+          key={`ant-${s}`}
+          args={[0.003, 0.003, 0.08, 6]}
+          position={[s * 0.04, 0.18, 0]}
+          rotation={[0, 0, s * Math.PI / 6]}
+        >
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+        </Cylinder>
+      ))}
+    </group>
+  );
+}
+
+// Gear (Misconfig)
+function GearModel({ color }: { color: string }) {
+  const teeth = 8;
+  return (
+    <group rotation={[Math.PI / 2, 0, 0]}>
+      {/* Ring */}
+      <Torus args={[0.13, 0.025, 12, 32]}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.5} roughness={0.4} />
+      </Torus>
+      {/* Teeth */}
+      {Array.from({ length: teeth }).map((_, i) => {
+        const angle = (i / teeth) * Math.PI * 2;
+        return (
+          <Box
+            key={i}
+            args={[0.03, 0.06, 0.025]}
+            position={[Math.cos(angle) * 0.15, Math.sin(angle) * 0.15, 0]}
+            rotation={[0, 0, angle + Math.PI / 2]}
+          >
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} metalness={0.5} roughness={0.4} />
+          </Box>
+        );
+      })}
+      {/* Hub */}
+      <Cylinder args={[0.035, 0.035, 0.04, 16]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#020617" />
+      </Cylinder>
+    </group>
+  );
+}
+
+function renderModel(id: string, color: string) {
+  switch (id) {
+    case "key":  return <KeyModel color={color} />;
+    case "lock": return <LockModel color={color} />;
+    case "fp":   return <FingerprintModel color={color} />;
+    case "doc":  return <DocumentModel color={color} />;
+    case "pyr":  return <PyramidModel color={color} />;
+    case "ava":  return <AvatarModel color={color} />;
+    case "bug":  return <BugModel color={color} />;
+    case "gear": return <GearModel color={color} />;
+    default: return null;
+  }
+}
+
+// ============================================================================
+// Orbits — each model sits on its own tilted ring at a unique radius/speed
+// ============================================================================
+function OrbitingModels() {
+  const groupRef = useRef<Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      // slow counter-rotation of the whole ring system
+      groupRef.current.rotation.y -= delta * 0.08;
+    }
+  });
+
+  // Each orbit: angle, radius, tilt, speed, phase
+  const orbits = useMemo(
+    () =>
+      ORBIT_CATS.map((cat, i) => ({
+        ...cat,
+        radius: 2.4 + (i % 3) * 0.25,
+        tilt: (i * 0.4) % (Math.PI / 2),
+        speed: 0.2 + (i % 4) * 0.08,
+        phase: (i / ORBIT_CATS.length) * Math.PI * 2,
+      })),
+    []
+  );
+
+  return (
+    <group ref={groupRef}>
+      {orbits.map((o) => (
+        <OrbitRing key={o.id} orbit={o} />
+      ))}
+    </group>
+  );
+}
+
+function OrbitRing({
+  orbit,
+}: {
+  orbit: {
+    id: string;
+    label: string;
+    color: string;
+    radius: number;
+    tilt: number;
+    speed: number;
+    phase: number;
+  };
+}) {
+  const ringRef = useRef<Group>(null);
+  useFrame((_, delta) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.y += delta * orbit.speed;
+    }
+  });
+
+  const angle = orbit.phase;
+  const x = Math.cos(angle) * orbit.radius;
+  const z = Math.sin(angle) * orbit.radius;
+
+  return (
+    <group rotation={[orbit.tilt, 0, orbit.tilt * 0.5]}>
+      {/* Visual orbit ring (faint) */}
+      <Torus args={[orbit.radius, 0.005, 8, 80]}>
+        <meshBasicMaterial color={orbit.color} transparent opacity={0.18} />
+      </Torus>
+      {/* Rotating carrier for the model */}
+      <group ref={ringRef}>
+        <group position={[x, 0, z]}>
+          <Float speed={2} rotationIntensity={0.6} floatIntensity={0.5}>
+            {/* Glow halo behind the model */}
+            <mesh scale={2.6}>
+              <sphereGeometry args={[0.13, 12, 12]} />
+              <meshBasicMaterial color={orbit.color} transparent opacity={0.12} />
+            </mesh>
+            {/* The actual 3D model */}
+            {renderModel(orbit.id, orbit.color)}
+            {/* Label below */}
+            <Billboard position={[0, -0.35, 0]}>
+              <Text
+                fontSize={0.085}
+                color={orbit.color}
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={0.005}
+                outlineColor="#020617"
+                outlineOpacity={0.9}
+              >
+                {orbit.label}
+              </Text>
+            </Billboard>
+          </Float>
+        </group>
+      </group>
+    </group>
+  );
+}
+
+// ============================================================================
+// Connection beams — animated lines from center to each orbiting model
+// ============================================================================
+function ConnectionBeams() {
+  const groupRef = useRef<Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y -= delta * 0.08;
+    }
+  });
+
+  const lines = useMemo(() => {
+    return ORBIT_CATS.map((cat, i) => {
+      const radius = 2.4 + (i % 3) * 0.25;
+      const tilt = (i * 0.4) % (Math.PI / 2);
+      const phase = (i / ORBIT_CATS.length) * Math.PI * 2;
+      const x = Math.cos(phase) * radius;
+      const z = Math.sin(phase) * radius;
+      // approximate the tilt-rotated endpoint
+      const y = z * Math.sin(tilt);
+      const z2 = z * Math.cos(tilt);
+      return {
+        color: cat.color,
+        points: [
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(x, y, z2),
+        ],
+      };
+    });
+  }, []);
+
+  return (
+    <group ref={groupRef}>
+      {lines.map((l, i) => (
+        <Line key={i} points={l.points} color={l.color} lineWidth={1} transparent opacity={0.4} />
+      ))}
+    </group>
+  );
+}
+
+// ============================================================================
+// Multi-direction scan rays — emanate from the core outward in 6 directions
+// ============================================================================
+function ScanRays() {
+  const groupRef = useRef<Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.45;
+      groupRef.current.rotation.x = Math.sin(performance.now() * 0.0008) * 0.2;
+    }
+  });
+
+  // Each ray: position offset + rotation to align cylinder Y-axis with direction
+  // Default cylinder is along Y; we rotate to point outward in each of 6 directions
+  const rays: {
+    pos: [number, number, number];
+    rot: [number, number, number];
+  }[] = [
+    { pos: [0.9, 0, 0], rot: [0, 0, -Math.PI / 2] },   // +X
+    { pos: [-0.9, 0, 0], rot: [0, 0, Math.PI / 2] },  // -X
+    { pos: [0, 0.9, 0], rot: [0, 0, 0] },              // +Y
+    { pos: [0, -0.9, 0], rot: [0, 0, Math.PI] },       // -Y
+    { pos: [0, 0, 0.9], rot: [Math.PI / 2, 0, 0] },    // +Z
+    { pos: [0, 0, -0.9], rot: [-Math.PI / 2, 0, 0] },  // -Z
   ];
 
   return (
-    <group position={[0, 0, 0.07]}>
-      {sections.map((s, i) => (
-        <group key={i} position={[s[0] + s[2] / 2, s[1] + s[3] / 2, 0]}>
-          {/* Solid fill (very subtle) */}
-          <Plane args={[s[2], s[3]]}>
-            <meshBasicMaterial color={s[4]} transparent opacity={0.45} />
-          </Plane>
-          {/* Wireframe outline */}
-          <mesh>
-            <planeGeometry args={[s[2], s[3]]} />
-            <meshBasicMaterial color="#10b981" wireframe transparent opacity={0.4} />
-          </mesh>
-        </group>
+    <group ref={groupRef}>
+      {rays.map((r, i) => (
+        <mesh key={i} position={r.pos} rotation={r.rot}>
+          <cylinderGeometry args={[0.012, 0.001, 1.8, 8, 1, true]} />
+          <meshBasicMaterial
+            color="#10b981"
+            transparent
+            opacity={0.32}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
       ))}
     </group>
   );
 }
 
 // ============================================================================
-// Component: ScanBeam — vertical emerald plane sweeping left-to-right
+// Grid floor
 // ============================================================================
-function ScanBeam() {
-  const ref = useRef<Mesh>(null);
-  const halfW = PAGE_WIDTH / 2;
-  // Period: 3.2 seconds for full sweep, with a brief pause at edges
-  useFrame((state) => {
-    if (!ref.current) return;
-    const t = state.clock.elapsedTime;
-    // ping-pong: ease in/out
-    const period = 3.2;
-    const phase = (t % period) / period;
-    // triangular wave 0→1→0
-    const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-    // smoothstep
-    const smoothed = tri * tri * (3 - 2 * tri);
-    const x = -halfW + smoothed * PAGE_WIDTH;
-    ref.current.position.x = x;
-    // Fade opacity at edges
-    const mat = ref.current.material as THREE.MeshBasicMaterial;
-    const edgeFade = Math.min(smoothed, 1 - smoothed) * 4;
-    mat.opacity = 0.18 + Math.min(edgeFade, 1) * 0.32;
-  });
+function GridFloor() {
+  return (
+    <group position={[0, -3.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <Grid
+        args={[20, 20]}
+        cellSize={0.5}
+        cellThickness={0.5}
+        cellColor="#0e7c5a"
+        sectionSize={2.5}
+        sectionThickness={1}
+        sectionColor="#10b981"
+        fadeDistance={18}
+        fadeStrength={1.5}
+        infiniteGrid
+      />
+    </group>
+  );
+}
+
+// ============================================================================
+// Floating background shapes
+// ============================================================================
+function FloatingShapes() {
+  const shapes = useMemo(() => {
+    const types = ["tetra", "octa", "dodeca", "ico", "cube"] as const;
+    return Array.from({ length: 12 }).map((_, i) => ({
+      type: types[i % types.length],
+      pos: [
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 14 - 4,
+      ] as [number, number, number],
+      scale: 0.05 + Math.random() * 0.12,
+      speed: 0.5 + Math.random() * 1,
+      rotSpeed: 0.2 + Math.random() * 0.5,
+    }));
+  }, []);
 
   return (
-    <mesh ref={ref} position={[0, -0.1, 0.15]}>
-      <planeGeometry args={[0.08, PAGE_HEIGHT + 0.05]} />
-      <meshBasicMaterial
-        color="#10b981"
-        transparent
-        opacity={0.35}
-        blending={THREE.AdditiveBlending}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
+    <>
+      {shapes.map((s, i) => (
+        <FloatingShape key={i} shape={s} />
+      ))}
+    </>
+  );
+}
+
+function FloatingShape({
+  shape,
+}: {
+  shape: {
+    type: "tetra" | "octa" | "dodeca" | "ico" | "cube";
+    pos: [number, number, number];
+    scale: number;
+    speed: number;
+    rotSpeed: number;
+  };
+}) {
+  const ref = useRef<Mesh>(null);
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    ref.current.rotation.x += delta * shape.rotSpeed;
+    ref.current.rotation.y += delta * shape.rotSpeed * 1.3;
+    ref.current.position.y += Math.sin(performance.now() * 0.001 * shape.speed) * 0.0008;
+  });
+
+  const common = (
+    <meshBasicMaterial color="#10b981" wireframe transparent opacity={0.28} />
+  );
+
+  return (
+    <mesh ref={ref} position={shape.pos} scale={shape.scale}>
+      {shape.type === "tetra" && <tetrahedronGeometry args={[1, 0]} />}
+      {shape.type === "octa" && <octahedronGeometry args={[1, 0]} />}
+      {shape.type === "dodeca" && <dodecahedronGeometry args={[1, 0]} />}
+      {shape.type === "ico" && <icosahedronGeometry args={[1, 0]} />}
+      {shape.type === "cube" && <boxGeometry args={[1, 1, 1]} />}
+      {common}
     </mesh>
   );
 }
 
 // ============================================================================
-// Component: LeakMarkerMesh — a leak marker on the page that pulses when beam hits
-// ============================================================================
-function LeakMarkerMesh({ marker }: { marker: LeakMarker }) {
-  const orbRef = useRef<Mesh>(null);
-  const haloRef = useRef<Mesh>(null);
-  // beam x at any given time is approximated by repeating the same wave as ScanBeam
-  // (we sync via clock.elapsedTime — both use the same clock)
-  useFrame((state) => {
-    if (!orbRef.current || !haloRef.current) return;
-    const t = state.clock.elapsedTime;
-    const period = 3.2;
-    const phase = (t % period) / period;
-    const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-    const smoothed = tri * tri * (3 - 2 * tri);
-    const beamX = -PAGE_WIDTH / 2 + smoothed * PAGE_WIDTH;
-    const dist = Math.abs(beamX - marker.position[0]);
-    // proximity: 1 when beam is on top, 0 when far away
-    const proximity = Math.max(0, 1 - dist / 0.35);
-    // base pulse (slow idle)
-    const idle = 0.5 + 0.5 * Math.sin(t * 2.5 + marker.position[0] * 3);
-    const intensity = 0.4 + idle * 0.3 + proximity * 1.4;
-    const mat = orbRef.current.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity = intensity;
-    const haloMat = haloRef.current.material as THREE.MeshBasicMaterial;
-    haloMat.opacity = 0.12 + proximity * 0.5;
-    const scale = 1 + proximity * 0.8;
-    haloRef.current.scale.setScalar(scale);
-  });
-
-  // label position: above and to the side, connected by a line
-  const labelOffset: [number, number, number] = [
-    marker.position[0] * 0.45 + (marker.position[0] > 0 ? 0.6 : -0.6),
-    marker.position[1] + 0.55,
-    0.4,
-  ];
-
-  return (
-    <group>
-      {/* Marker orb on the page surface */}
-      <group position={[marker.position[0], marker.position[1], 0.12]}>
-        <mesh ref={orbRef}>
-          <sphereGeometry args={[0.06, 16, 16]} />
-          <meshStandardMaterial
-            color={marker.color}
-            emissive={marker.color}
-            emissiveIntensity={1}
-            roughness={0.3}
-          />
-        </mesh>
-        {/* Halo (pulses when beam crosses) */}
-        <mesh ref={haloRef}>
-          <sphereGeometry args={[0.09, 16, 16]} />
-          <meshBasicMaterial color={marker.color} transparent opacity={0.15} />
-        </mesh>
-      </group>
-
-      {/* Connection line from marker to label */}
-      <Line
-        points={[
-          new THREE.Vector3(marker.position[0], marker.position[1], 0.13),
-          new THREE.Vector3(labelOffset[0], labelOffset[1], labelOffset[2]),
-        ]}
-        color={marker.color}
-        lineWidth={1}
-        transparent
-        opacity={0.55}
-      />
-
-      {/* Floating category label */}
-      <Float speed={2.4} rotationIntensity={0.3} floatIntensity={0.4}>
-        <group position={labelOffset}>
-          {/* Label backdrop (small rounded plane) */}
-          <mesh>
-            <planeGeometry args={[0.55, 0.18]} />
-            <meshBasicMaterial
-              color="#020617"
-              transparent
-              opacity={0.78}
-            />
-          </mesh>
-          {/* Border via wireframe overlay */}
-          <mesh position={[0, 0, 0.001]}>
-            <planeGeometry args={[0.55, 0.18]} />
-            <meshBasicMaterial color={marker.color} wireframe transparent opacity={0.7} />
-          </mesh>
-          {/* Label text */}
-          <Billboard position={[0, 0, 0.01]}>
-            <Text
-              fontSize={0.075}
-              color={marker.color}
-              anchorX="center"
-              anchorY="middle"
-              outlineWidth={0.004}
-              outlineColor="#020617"
-              outlineOpacity={0.9}
-            >
-              {marker.label}
-            </Text>
-          </Billboard>
-        </group>
-      </Float>
-    </group>
-  );
-}
-
-// ============================================================================
-// Component: ExtractedSecretParticles — small points drifting upward from page
-// ============================================================================
-function ExtractedSecretParticles() {
-  const ref = useRef<Group>(null);
-  // Build a pool of 14 particles with random initial params
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 14 }).map(() => ({
-        x: (Math.random() - 0.5) * PAGE_WIDTH * 0.85,
-        z: (Math.random() - 0.5) * 0.2,
-        speed: 0.18 + Math.random() * 0.28,
-        offset: Math.random() * 10,
-        size: 0.012 + Math.random() * 0.012,
-        color: Math.random() > 0.5 ? "#10b981" : "#34d399",
-      })),
-    []
-  );
-
-  useFrame((state) => {
-    if (!ref.current) return;
-    const t = state.clock.elapsedTime;
-    // Update each particle's y position (loop within [-PAGE_HEIGHT/2, PAGE_HEIGHT/2 + 1])
-    ref.current.children.forEach((child, i) => {
-      const p = particles[i];
-      const cycleTime = (PAGE_HEIGHT + 1.5) / p.speed;
-      const cyclePhase = (t + p.offset) % cycleTime;
-      const y = -PAGE_HEIGHT / 2 - 0.1 + cyclePhase * p.speed;
-      child.position.y = y;
-      // Fade out near top
-      const topDist = (PAGE_HEIGHT / 2 + 1) - y;
-      const fade = Math.min(1, topDist / 0.3);
-      const mat = (child as Mesh).material as THREE.MeshBasicMaterial;
-      mat.opacity = fade * 0.7;
-      child.visible = fade > 0.01;
-    });
-  });
-
-  return (
-    <group ref={ref} position={[0, 0, 0.25]}>
-      {particles.map((p, i) => (
-        <mesh key={i} position={[p.x, 0, p.z]}>
-          <sphereGeometry args={[p.size, 8, 8]} />
-          <meshBasicMaterial color={p.color} transparent opacity={0.6} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-// ============================================================================
-// Component: Orbiting magnifying glass — adds context "we're inspecting this"
-// ============================================================================
-function OrbitingMagnifier() {
-  const groupRef = useRef<Group>(null);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.35;
-    }
-  });
-
-  return (
-    <group ref={groupRef} position={[0, -0.1, 0]}>
-      {/* Orbit pivot */}
-      <group>
-        {/* Glass lens */}
-        <Float speed={1.5} rotationIntensity={0.4} floatIntensity={0.5}>
-          <group position={[2.6, 0.5, 0.6]} rotation={[0.4, 0, 0.5]}>
-            <Torus args={[0.28, 0.04, 16, 32]}>
-              <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.4} metalness={0.7} roughness={0.3} />
-            </Torus>
-            {/* Glass */}
-            <mesh>
-              <circleGeometry args={[0.27, 32]} />
-              <meshStandardMaterial color="#10b981" transparent opacity={0.18} side={THREE.DoubleSide} />
-            </mesh>
-            {/* Handle */}
-            <Cylinder args={[0.04, 0.04, 0.4, 12]} position={[0.45, -0.45, 0]} rotation={[0, 0, Math.PI / 4]}>
-              <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.3} metalness={0.7} roughness={0.3} />
-            </Cylinder>
-            {/* Label */}
-            <Billboard position={[0, 0.45, 0]}>
-              <Text fontSize={0.09} color="#10b981" anchorX="center" outlineWidth={0.004} outlineColor="#020617" outlineOpacity={0.9}>
-                INSPECTING
-              </Text>
-            </Billboard>
-          </group>
-        </Float>
-      </group>
-    </group>
-  );
-}
-
-// ============================================================================
-// Suspense fallback — empty (avoid drei <Html> which breaks React 19)
+// Suspense fallback
 // ============================================================================
 function SceneFallback() {
   return null;
@@ -428,31 +628,37 @@ function SceneFallback() {
 export function LeakGuardScene() {
   return (
     <Canvas
-      camera={{ position: [0, 0.5, 5.8], fov: 45 }}
-      dpr={[1, 2]}
+      camera={{ position: [0, 1.6, 6.2], fov: 48 }}
+      dpr={[1, 1.5]}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       style={{ background: "transparent" }}
     >
       <Suspense fallback={<SceneFallback />}>
         {/* Lighting */}
-        <ambientLight intensity={0.55} />
-        <pointLight position={[4, 4, 4]} intensity={1.6} color="#10b981" />
-        <pointLight position={[-4, 2, 3]} intensity={0.8} color="#f59e0b" />
-        <pointLight position={[0, 5, -3]} intensity={0.5} color="#34d399" />
-        <directionalLight position={[0, 0, 5]} intensity={0.6} color="#10b981" />
+        <ambientLight intensity={0.5} />
+        <pointLight position={[5, 5, 5]} intensity={1.8} color="#10b981" />
+        <pointLight position={[-5, -2, 4]} intensity={1} color="#f59e0b" />
+        <pointLight position={[0, 6, -4]} intensity={0.6} color="#34d399" />
+        <directionalLight position={[2, 4, 3]} intensity={0.7} color="#10b981" />
 
-        {/* The 3D browser window — tilted toward camera */}
-        <group rotation={[-0.18, -0.25, 0]} position={[0, 0, 0]}>
-          <BrowserWindow />
-        </group>
+        {/* Centerpiece + scan rays */}
+        <Centerpiece />
+        <ScanRays />
 
-        {/* Orbiting magnifier for context */}
-        <OrbitingMagnifier />
+        {/* Connection beams + orbiting models */}
+        <ConnectionBeams />
+        <OrbitingModels />
 
-        {/* Stars background */}
-        <Stars radius={50} depth={30} count={1000} factor={2.5} saturation={0} fade speed={0.4} />
+        {/* Grid floor */}
+        <GridFloor />
 
-        {/* Camera controls */}
+        {/* Floating shapes in background */}
+        <FloatingShapes />
+
+        {/* Stars */}
+        <Stars radius={60} depth={40} count={1500} factor={3} saturation={0} fade speed={0.4} />
+
+        {/* Camera */}
         <OrbitControls
           enableZoom={false}
           enablePan={false}

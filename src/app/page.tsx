@@ -359,12 +359,12 @@ export default function Home() {
                       </h3>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      The 3D mockup above shows exactly what happens when you hit EXECUTE:
-                      LeakGuard treats the target like a browser window, sweeps a vertical
-                      scan beam left-to-right across the page and its scripts, and pinpoints
-                      each leak marker (red/amber orbs above the page surface). The orbiting
-                      magnifier indicates live inspection. Connection beams trace each leak
-                      to its category label.
+                      The 3D constellation above maps every LeakGuard capability to a unique
+                      3D model orbiting the central wireframe scanner. A key for API keys,
+                      a lock for secrets, a fingerprint for AI-tool traces, a document for
+                      exposed files, a pyramid for source maps, an avatar for PII, a bug for
+                      debug routes, and a gear for misconfigurations. Six scan rays fire from
+                      the glowing core on every scan.
                     </p>
                   </div>
 
