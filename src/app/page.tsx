@@ -46,7 +46,7 @@ const LeakGuardScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[420px] flex items-center justify-center text-emerald-500/60 font-mono text-xs">
+      <div className="h-[420px] flex items-center justify-center text-blue-500/60 font-mono text-xs">
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
         Initializing 3D scanner…
       </div>
@@ -184,22 +184,22 @@ export default function Home() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-emerald-500/20 glass">
+      <header className="sticky top-0 z-20 border-b border-blue-500/20 glass">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <motion.div
               initial={{ rotate: -10, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
               transition={{ duration: 0.5 }}
-              className="w-9 h-9 rounded-lg border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center glow-emerald"
+              className="w-9 h-9 rounded-lg border border-blue-500/40 bg-blue-500/10 flex items-center justify-center glow-blue"
             >
-              <ShieldAlert className="w-5 h-5 text-emerald-400" />
+              <ShieldAlert className="w-5 h-5 text-blue-400" />
             </motion.div>
             <div className="min-w-0">
               <h1 className="text-base font-mono font-semibold tracking-tight leading-none">
-                <span className="text-emerald-400 text-glow-emerald">LEAK</span>
+                <span className="text-blue-400 text-glow-blue">LEAK</span>
                 <span className="text-foreground">GUARD</span>
-                <span className="ml-1 text-emerald-400 animate-blink">_</span>
+                <span className="ml-1 text-blue-400 animate-blink">_</span>
               </h1>
               <p className="text-[10px] text-muted-foreground mt-1 font-mono uppercase tracking-wider">
                 AI-Website Leak Detector v1.0
@@ -207,8 +207,8 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-1.5 text-[10px] font-mono text-emerald-500/70 px-2 py-1 rounded border border-emerald-500/20 bg-emerald-500/5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="hidden md:flex items-center gap-1.5 text-[10px] font-mono text-blue-500/70 px-2 py-1 rounded border border-blue-500/20 bg-blue-500/5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
               SYSTEM ONLINE
             </div>
             <AuthButton />
@@ -225,13 +225,13 @@ export default function Home() {
             transition={{ duration: 0.4 }}
             className="text-center mb-8 max-w-3xl mx-auto"
           >
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/5 text-emerald-300 text-xs font-mono mb-4">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-blue-500/30 bg-blue-500/5 text-blue-300 text-xs font-mono mb-4">
               <Zap className="w-3 h-3" />
               BOUNDED · NO LOOPS · NO BUGS
             </div>
             <h2 className="text-3xl md:text-5xl font-mono font-bold tracking-tight leading-tight">
               <span className="text-foreground">Find every</span>{" "}
-              <span className="bg-gradient-to-r from-emerald-400 via-emerald-300 to-amber-400 bg-clip-text text-transparent text-glow-emerald">
+              <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-sky-400 bg-clip-text text-transparent text-glow-blue">
                 leaked secret
               </span>
               <br />
@@ -251,12 +251,12 @@ export default function Home() {
             transition={{ duration: 0.35, delay: 0.1 }}
             className="relative max-w-2xl mx-auto"
           >
-            <Card className="border-emerald-500/30 glass overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-emerald-500/20 bg-slate-950/40">
+            <Card className="border-blue-500/30 glass overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-blue-500/20 bg-slate-950/40">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/70" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-sky-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/70" />
                 </div>
                 <div className="flex-1 text-center text-[10px] font-mono text-muted-foreground">
                   leakguard@scanner: ~/scan
@@ -266,7 +266,7 @@ export default function Home() {
               <CardContent className="p-4">
                 <form onSubmit={runScan} className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-emerald-400 text-sm pointer-events-none">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-blue-400 text-sm pointer-events-none">
                       $
                     </span>
                     <Input
@@ -274,7 +274,7 @@ export default function Home() {
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
                       placeholder="scan https://example.com"
-                      className="pl-7 font-mono text-sm h-11 bg-slate-950/60 border-emerald-500/30 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/20"
+                      className="pl-7 font-mono text-sm h-11 bg-slate-950/60 border-blue-500/30 focus-visible:border-blue-400 focus-visible:ring-blue-400/20"
                       disabled={scanning}
                       autoComplete="off"
                       spellCheck={false}
@@ -283,7 +283,7 @@ export default function Home() {
                   <Button
                     type="submit"
                     disabled={scanning}
-                    className="h-11 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-mono font-semibold border border-emerald-300/40 shadow-[0_0_25px_-8px_rgba(16,185,129,0.7)]"
+                    className="h-11 bg-blue-500 hover:bg-blue-400 text-blue-950 font-mono font-semibold border border-blue-300/40 shadow-[0_0_25px_-8px_rgba(59, 130, 246,0.7)]"
                   >
                     {scanning ? (
                       <>
@@ -299,14 +299,14 @@ export default function Home() {
                   </Button>
                 </form>
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
-                  <span className="text-emerald-500/60">try:</span>
+                  <span className="text-blue-500/60">try:</span>
                   {["https://httpbin.org", "https://example.com"].map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setUrl(t)}
                       disabled={scanning}
-                      className="px-2 py-0.5 rounded border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 hover:bg-emerald-500/10 hover:border-emerald-400/40 transition disabled:opacity-50"
+                      className="px-2 py-0.5 rounded border border-blue-500/20 bg-blue-500/5 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/40 transition disabled:opacity-50"
                     >
                       {t}
                     </button>
@@ -319,14 +319,14 @@ export default function Home() {
 
         {/* 3D verification section */}
         <section className="mb-8">
-          <Card className="border-emerald-500/30 glass overflow-hidden">
-            <CardHeader className="border-b border-emerald-500/15 bg-slate-950/40">
+          <Card className="border-blue-500/30 glass overflow-hidden">
+            <CardHeader className="border-b border-blue-500/15 bg-slate-950/40">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                  <Box className="w-4 h-4 text-emerald-400" />
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+                  <Box className="w-4 h-4 text-blue-400" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-mono text-emerald-300">
+                  <CardTitle className="text-base font-mono text-blue-300">
                     VERIFICATION MATRIX
                   </CardTitle>
                   <CardDescription className="text-xs font-mono text-muted-foreground mt-0.5">
@@ -338,9 +338,9 @@ export default function Home() {
             <CardContent className="p-0">
               <div className="grid lg:grid-cols-[1fr_320px]">
                 {/* 3D canvas */}
-                <div className="relative h-[420px] sm:h-[480px] bg-gradient-to-b from-emerald-500/5 to-transparent border-b lg:border-b-0 lg:border-r border-emerald-500/15">
-                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded border border-emerald-500/20 bg-slate-950/60 text-[10px] font-mono text-emerald-400/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="relative h-[420px] sm:h-[480px] bg-gradient-to-b from-blue-500/5 to-transparent border-b lg:border-b-0 lg:border-r border-blue-500/15">
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded border border-blue-500/20 bg-slate-950/60 text-[10px] font-mono text-blue-400/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                     LIVE · DRAG TO ROTATE
                   </div>
                   <div className="absolute bottom-3 right-3 z-10 text-[10px] font-mono text-muted-foreground/60">
@@ -353,8 +353,8 @@ export default function Home() {
                 <div className="p-5 space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <ScanLine className="w-3.5 h-3.5 text-emerald-400" />
-                      <h3 className="text-xs font-mono font-semibold text-emerald-300 tracking-wider uppercase">
+                      <ScanLine className="w-3.5 h-3.5 text-blue-400" />
+                      <h3 className="text-xs font-mono font-semibold text-blue-300 tracking-wider uppercase">
                         What LeakGuard verifies
                       </h3>
                     </div>
@@ -392,8 +392,8 @@ export default function Home() {
                     ))}
                   </ul>
 
-                  <div className="pt-3 border-t border-emerald-500/15">
-                    <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-500/70">
+                  <div className="pt-3 border-t border-blue-500/15">
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-blue-500/70">
                       <Shield className="w-3 h-3" />
                       <span>BOUNDED · NO LOOPS · NO INFINITE POLLING</span>
                     </div>
@@ -407,14 +407,14 @@ export default function Home() {
         {/* Scanning radar */}
         {scanning && (
           <section className="mb-8">
-            <Card className="border-emerald-500/30 glass">
+            <Card className="border-blue-500/30 glass">
               <CardContent className="p-6">
                 <div className="grid md:grid-cols-[260px_1fr] gap-6 items-center">
                   <ScanRadar />
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                      <h3 className="font-mono text-sm text-emerald-300">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      <h3 className="font-mono text-sm text-blue-300">
                         SCAN IN PROGRESS
                       </h3>
                     </div>
@@ -428,7 +428,7 @@ export default function Home() {
                             key={s.label}
                             className={`flex items-center gap-2 font-mono text-xs ${
                               done
-                                ? "text-emerald-400"
+                                ? "text-blue-400"
                                 : active
                                 ? "text-foreground"
                                 : "text-muted-foreground/60"
@@ -437,17 +437,17 @@ export default function Home() {
                             <span
                               className={`w-5 h-5 rounded flex items-center justify-center text-[9px] ${
                                 done
-                                  ? "bg-emerald-500 text-emerald-950"
+                                  ? "bg-blue-500 text-blue-950"
                                   : active
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                  ? "bg-blue-500/20 text-blue-300 border border-blue-500/40"
                                   : "bg-slate-800/60 text-muted-foreground"
                               }`}
                             >
                               {done ? "✓" : i + 1}
                             </span>
-                            <Icon className={`w-3 h-3 ${done || active ? "text-emerald-400" : ""}`} />
+                            <Icon className={`w-3 h-3 ${done || active ? "text-blue-400" : ""}`} />
                             {s.label}
-                            {active && <span className="animate-blink text-emerald-400">▌</span>}
+                            {active && <span className="animate-blink text-blue-400">▌</span>}
                           </li>
                         );
                       })}
@@ -468,7 +468,7 @@ export default function Home() {
         {session?.user && (
           <section className="mt-10">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-mono text-emerald-300 flex items-center gap-2">
+              <h2 className="text-sm font-mono text-blue-300 flex items-center gap-2">
                 <Database className="w-3.5 h-3.5" />
                 SAVED SCANS <span className="text-muted-foreground">({savedScans.length})</span>
               </h2>
@@ -482,7 +482,7 @@ export default function Home() {
             {loadingSaved ? (
               <div className="text-xs font-mono text-muted-foreground">Loading…</div>
             ) : savedScans.length === 0 ? (
-              <Card className="border-dashed border-emerald-500/20">
+              <Card className="border-dashed border-blue-500/20">
                 <CardContent className="p-6 text-center">
                   <p className="text-xs font-mono text-muted-foreground">
                     No saved scans yet. Run a scan while logged in to persist it here.
@@ -496,7 +496,7 @@ export default function Home() {
                   return (
                     <Card
                       key={i}
-                      className="cursor-pointer hover:border-emerald-400/40 transition bg-card/60 glass"
+                      className="cursor-pointer hover:border-blue-400/40 transition bg-card/60 glass"
                       onClick={() => {
                         setResult(s);
                         setStage(SCANNER_STAGES.length);
@@ -505,7 +505,7 @@ export default function Home() {
                     >
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-300">
+                          <Badge variant="outline" className="text-[10px] font-mono border-blue-500/30 text-blue-300">
                             {s.findings.length} found
                           </Badge>
                           <Badge
@@ -514,7 +514,7 @@ export default function Home() {
                                 ? "bg-red-500/90 text-white"
                                 : counts.high > 0
                                 ? "bg-orange-500/90 text-white"
-                                : "bg-emerald-500/90 text-emerald-950"
+                                : "bg-blue-500/90 text-blue-950"
                             }`}
                           >
                             {counts.critical > 0
@@ -540,7 +540,7 @@ export default function Home() {
         {/* Session history (always) */}
         {sessionHistory.length > 0 && !scanning && (
           <section className="mt-10">
-            <h2 className="text-sm font-mono text-emerald-300 flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-mono text-blue-300 flex items-center gap-2 mb-3">
               <Activity className="w-3.5 h-3.5" />
               SESSION HISTORY <span className="text-muted-foreground">({sessionHistory.length})</span>
             </h2>
@@ -550,7 +550,7 @@ export default function Home() {
                 return (
                   <Card
                     key={i}
-                    className="cursor-pointer hover:border-emerald-400/40 transition bg-card/60 glass"
+                    className="cursor-pointer hover:border-blue-400/40 transition bg-card/60 glass"
                     onClick={() => {
                       setResult(h);
                       setStage(SCANNER_STAGES.length);
@@ -559,7 +559,7 @@ export default function Home() {
                   >
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-300">
+                        <Badge variant="outline" className="text-[10px] font-mono border-blue-500/30 text-blue-300">
                           {h.findings.length} found
                         </Badge>
                         <Badge
@@ -568,7 +568,7 @@ export default function Home() {
                               ? "bg-red-500/90 text-white"
                               : counts.high > 0
                               ? "bg-orange-500/90 text-white"
-                              : "bg-emerald-500/90 text-emerald-950"
+                              : "bg-blue-500/90 text-blue-950"
                           }`}
                         >
                           {counts.critical > 0
@@ -601,12 +601,12 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 * i }}
                 >
-                  <Card className="border-emerald-500/20 bg-card/50 glass hover:border-emerald-400/40 transition h-full">
+                  <Card className="border-blue-500/20 bg-card/50 glass hover:border-blue-400/40 transition h-full">
                     <CardHeader>
-                      <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-2 glow-emerald">
-                        <c.icon className="w-4 h-4 text-emerald-400" />
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-2 glow-blue">
+                        <c.icon className="w-4 h-4 text-blue-400" />
                       </div>
-                      <CardTitle className="text-sm font-mono text-emerald-200">
+                      <CardTitle className="text-sm font-mono text-blue-200">
                         {c.title}
                       </CardTitle>
                       <CardDescription className="text-xs text-muted-foreground">
@@ -619,8 +619,8 @@ export default function Home() {
             </div>
 
             <div className="mb-3 flex items-center gap-2">
-              <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-              <h3 className="text-sm font-mono text-emerald-300">DETECTION MATRIX</h3>
+              <Cpu className="w-3.5 h-3.5 text-blue-400" />
+              <h3 className="text-sm font-mono text-blue-300">DETECTION MATRIX</h3>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {Object.entries(CATEGORY_META).map(([k, v], i) => {
@@ -631,10 +631,10 @@ export default function Home() {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.03 * i }}
-                    className="p-3 rounded-lg border border-emerald-500/15 bg-card/50 glass hover:border-emerald-400/40 transition group"
+                    className="p-3 rounded-lg border border-blue-500/15 bg-card/50 glass hover:border-blue-400/40 transition group"
                   >
-                    <Icon className="w-3.5 h-3.5 text-emerald-400 mb-2 group-hover:scale-110 transition" />
-                    <div className="text-xs font-mono font-medium text-emerald-200">{v.label}</div>
+                    <Icon className="w-3.5 h-3.5 text-blue-400 mb-2 group-hover:scale-110 transition" />
+                    <div className="text-xs font-mono font-medium text-blue-200">{v.label}</div>
                     <div className="text-[10px] text-muted-foreground mt-1 leading-snug">
                       {v.description}
                     </div>
@@ -646,10 +646,10 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-emerald-500/15 mt-10 glass">
+      <footer className="border-t border-blue-500/15 mt-10 glass">
         <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
             LEAKGUARD · BOUNDED SCANNER · NO POLLING · NO INFINITE LOOPS
           </span>
           <span>
@@ -701,7 +701,7 @@ function MatrixRainCanvas() {
         const x = i * fontSize;
         const y = drops[i] * fontSize;
         const alpha = Math.max(0.05, Math.min(0.22, y / canvas.height));
-        ctx.fillStyle = `rgba(16, 185, 129, ${alpha})`;
+        ctx.fillStyle = `rgba(59, 130, 246, ${alpha})`;
         ctx.fillText(ch, x, y);
         if (y > canvas.height && Math.random() > 0.97) drops[i] = 0;
         drops[i]++;
@@ -723,21 +723,21 @@ function ScanRadar() {
   return (
     <div className="relative w-[240px] h-[240px] mx-auto">
       {/* Concentric circles */}
-      <div className="absolute inset-0 rounded-full border border-emerald-500/30" />
-      <div className="absolute inset-6 rounded-full border border-emerald-500/20" />
-      <div className="absolute inset-12 rounded-full border border-emerald-500/15" />
-      <div className="absolute inset-[72px] rounded-full border border-emerald-500/10" />
+      <div className="absolute inset-0 rounded-full border border-blue-500/30" />
+      <div className="absolute inset-6 rounded-full border border-blue-500/20" />
+      <div className="absolute inset-12 rounded-full border border-blue-500/15" />
+      <div className="absolute inset-[72px] rounded-full border border-blue-500/10" />
 
       {/* Cross axes */}
-      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-emerald-500/20 -translate-x-1/2" />
-      <div className="absolute top-1/2 left-0 right-0 h-px bg-emerald-500/20 -translate-y-1/2" />
+      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-blue-500/20 -translate-x-1/2" />
+      <div className="absolute top-1/2 left-0 right-0 h-px bg-blue-500/20 -translate-y-1/2" />
 
       {/* Sweeping line (rotates) */}
       <div
         className="absolute inset-0 rounded-full animate-scan-sweep"
         style={{
           background:
-            "conic-gradient(from 0deg, transparent 0deg, rgba(16,185,129,0.35) 30deg, transparent 60deg, transparent 360deg)",
+            "conic-gradient(from 0deg, transparent 0deg, rgba(59, 130, 246,0.35) 30deg, transparent 60deg, transparent 360deg)",
           maskImage: "radial-gradient(circle, transparent 30%, black 30%)",
           WebkitMaskImage: "radial-gradient(circle, transparent 30%, black 30%)",
         }}
@@ -747,7 +747,7 @@ function ScanRadar() {
       <motion.div
         animate={{ scale: [1, 1.4, 1], opacity: [1, 0.4, 1] }}
         transition={{ duration: 1.8, repeat: Infinity }}
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_20px_4px_rgba(16,185,129,0.7)]"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_20px_4px_rgba(59, 130, 246,0.7)]"
       />
 
       {/* Random target blips */}
@@ -760,7 +760,7 @@ function ScanRadar() {
       ].map((p, i) => (
         <motion.div
           key={i}
-          className="absolute w-1.5 h-1.5 rounded-full bg-amber-400"
+          className="absolute w-1.5 h-1.5 rounded-full bg-sky-400"
           style={{ left: p.x, top: p.y }}
           animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
           transition={{ duration: 2.4, repeat: Infinity, delay: p.d }}
@@ -769,7 +769,7 @@ function ScanRadar() {
 
       {/* Radar icon overlay */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <Radar className="w-6 h-6 text-emerald-500/30" />
+        <Radar className="w-6 h-6 text-blue-500/30" />
       </div>
     </div>
   );
@@ -798,7 +798,7 @@ function ResultView({
   const sevColors: Record<string, string> = {
     critical: "bg-red-500",
     high: "bg-orange-500",
-    medium: "bg-amber-500",
+    medium: "bg-sky-500",
     low: "bg-yellow-400",
     info: "bg-sky-500",
   };
@@ -809,22 +809,22 @@ function ResultView({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="mb-6 border-emerald-500/30 glass">
+      <Card className="mb-6 border-blue-500/30 glass">
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="text-base font-mono flex items-center gap-2 text-emerald-300">
+              <CardTitle className="text-base font-mono flex items-center gap-2 text-blue-300">
                 <Shield className="w-4 h-4" />
                 SCAN REPORT
               </CardTitle>
               <CardDescription className="mt-1.5 font-mono text-xs break-all">
-                <span className="text-emerald-400/70">$ target:</span>{" "}
+                <span className="text-blue-400/70">$ target:</span>{" "}
                 <span className="text-foreground">{result.targetUrl}</span>
               </CardDescription>
             </div>
             <div className="flex gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={onExport} disabled={total === 0}
-                className="font-mono text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10">
+                className="font-mono text-xs border-blue-500/30 text-blue-300 hover:bg-blue-500/10">
                 <Download className="w-3.5 h-3.5 mr-1.5" />
                 JSON
               </Button>
@@ -857,10 +857,10 @@ function ResultView({
 
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
-            <Stat label="TOTAL" value={total} tone="bg-emerald-500/15 border border-emerald-500/30 text-emerald-300" />
+            <Stat label="TOTAL" value={total} tone="bg-blue-500/15 border border-blue-500/30 text-blue-300" />
             <Stat label="CRITICAL" value={counts.critical} tone="bg-red-500/15 border border-red-500/40 text-red-300" />
             <Stat label="HIGH" value={counts.high} tone="bg-orange-500/15 border border-orange-500/40 text-orange-300" />
-            <Stat label="MEDIUM" value={counts.medium} tone="bg-amber-500/15 border border-amber-500/40 text-amber-300" />
+            <Stat label="MEDIUM" value={counts.medium} tone="bg-sky-500/15 border border-sky-500/40 text-sky-300" />
             <Stat label="LOW/INFO" value={counts.low + counts.info} tone="bg-sky-500/15 border border-sky-500/40 text-sky-300" />
           </div>
 
@@ -874,9 +874,9 @@ function ResultView({
 
           {/* Errors */}
           {result.errors.length > 0 && (
-            <Alert className="mt-4 border-amber-500/40 bg-amber-500/5">
-              <Bug className="w-4 h-4 text-amber-500" />
-              <AlertTitle className="text-amber-400 font-mono text-xs">SCAN WARNINGS</AlertTitle>
+            <Alert className="mt-4 border-sky-500/40 bg-sky-500/5">
+              <Bug className="w-4 h-4 text-sky-500" />
+              <AlertTitle className="text-sky-400 font-mono text-xs">SCAN WARNINGS</AlertTitle>
               <AlertDescription className="font-mono text-xs">
                 <ul className="list-disc pl-5 space-y-0.5 mt-1">
                   {result.errors.map((e, i) => (
@@ -889,9 +889,9 @@ function ResultView({
 
           {/* Findings */}
           {total === 0 ? (
-            <Alert className="mt-4 border-emerald-500/40 bg-emerald-500/5">
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <AlertTitle className="text-emerald-400 font-mono text-xs">NO LEAKS DETECTED</AlertTitle>
+            <Alert className="mt-4 border-blue-500/40 bg-blue-500/5">
+              <Shield className="w-4 h-4 text-blue-400" />
+              <AlertTitle className="text-blue-400 font-mono text-xs">NO LEAKS DETECTED</AlertTitle>
               <AlertDescription className="font-mono text-xs">
                 None of LeakGuard&apos;s pattern matchers or path probes returned a positive result.
                 Note: this is not a full security audit — only the well-known AI-tool leak patterns are checked.
@@ -899,15 +899,15 @@ function ResultView({
             </Alert>
           ) : (
             <Tabs defaultValue="all" className="mt-5">
-              <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap bg-slate-950/40 border border-emerald-500/20">
-                <TabsTrigger value="all" className="font-mono text-xs data-[state=active]:text-emerald-300 data-[state=active]:bg-emerald-500/10">
+              <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap bg-slate-950/40 border border-blue-500/20">
+                <TabsTrigger value="all" className="font-mono text-xs data-[state=active]:text-blue-300 data-[state=active]:bg-blue-500/10">
                   ALL ({total})
                 </TabsTrigger>
                 {Object.entries(grouped).map(([cat, list]) => (
                   <TabsTrigger
                     key={cat}
                     value={cat}
-                    className="font-mono text-xs data-[state=active]:text-emerald-300 data-[state=active]:bg-emerald-500/10"
+                    className="font-mono text-xs data-[state=active]:text-blue-300 data-[state=active]:bg-blue-500/10"
                   >
                     {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.label ?? cat} ({list.length})
                   </TabsTrigger>
@@ -924,7 +924,7 @@ function ResultView({
 
               {Object.entries(grouped).map(([cat, list]) => (
                 <TabsContent key={cat} value={cat} className="mt-4 space-y-3">
-                  <p className="text-xs text-muted-foreground font-mono mb-2 border-l-2 border-emerald-500/40 pl-3">
+                  <p className="text-xs text-muted-foreground font-mono mb-2 border-l-2 border-blue-500/40 pl-3">
                     {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.description}
                   </p>
                   <AnimatePresence>
@@ -965,9 +965,9 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: stri
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-emerald-500/15 bg-slate-950/40 px-3 py-2">
-      <div className="text-[9px] uppercase tracking-wider text-emerald-500/60 font-mono">{label}</div>
-      <div className="text-sm font-mono mt-0.5 text-emerald-200">{value}</div>
+    <div className="rounded-md border border-blue-500/15 bg-slate-950/40 px-3 py-2">
+      <div className="text-[9px] uppercase tracking-wider text-blue-500/60 font-mono">{label}</div>
+      <div className="text-sm font-mono mt-0.5 text-blue-200">{value}</div>
     </div>
   );
 }
@@ -977,14 +977,14 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
   const sevBorder: Record<string, string> = {
     critical: "border-l-red-500",
     high: "border-l-orange-500",
-    medium: "border-l-amber-500",
+    medium: "border-l-sky-500",
     low: "border-l-yellow-400",
     info: "border-l-sky-500",
   };
   const sevGlow: Record<string, string> = {
     critical: "hover:shadow-[0_0_25px_-8px_rgba(239,68,68,0.6)]",
     high: "hover:shadow-[0_0_25px_-8px_rgba(249,115,22,0.6)]",
-    medium: "hover:shadow-[0_0_25px_-8px_rgba(245,158,11,0.5)]",
+    medium: "hover:shadow-[0_0_25px_-8px_rgba(96, 165, 250,0.5)]",
     low: "hover:shadow-[0_0_25px_-8px_rgba(250,204,21,0.4)]",
     info: "hover:shadow-[0_0_25px_-8px_rgba(14,165,233,0.5)]",
   };
@@ -994,7 +994,7 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index * 0.04, 0.5) }}
     >
-      <Card className={`overflow-hidden border-l-4 ${sevBorder[finding.severity]} border-emerald-500/15 bg-card/60 glass ${sevGlow[finding.severity]} transition-all hover:border-emerald-400/40`}>
+      <Card className={`overflow-hidden border-l-4 ${sevBorder[finding.severity]} border-blue-500/15 bg-card/60 glass ${sevGlow[finding.severity]} transition-all hover:border-blue-400/40`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -1013,16 +1013,16 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
           </p>
 
           <div className="grid sm:grid-cols-2 gap-2 text-xs">
-            <div className="rounded-md bg-slate-950/60 border border-emerald-500/15 p-2">
-              <div className="text-[9px] uppercase tracking-wider text-emerald-500/60 font-mono mb-1">
+            <div className="rounded-md bg-slate-950/60 border border-blue-500/15 p-2">
+              <div className="text-[9px] uppercase tracking-wider text-blue-500/60 font-mono mb-1">
                 EVIDENCE
               </div>
-              <code className="font-mono text-[11px] break-all block text-emerald-200/90">
+              <code className="font-mono text-[11px] break-all block text-blue-200/90">
                 {finding.evidence}
               </code>
             </div>
-            <div className="rounded-md bg-slate-950/60 border border-emerald-500/15 p-2">
-              <div className="text-[9px] uppercase tracking-wider text-emerald-500/60 font-mono mb-1">
+            <div className="rounded-md bg-slate-950/60 border border-blue-500/15 p-2">
+              <div className="text-[9px] uppercase tracking-wider text-blue-500/60 font-mono mb-1">
                 LOCATION
               </div>
               {finding.locationType === "url" ? (
@@ -1030,21 +1030,21 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
                   href={finding.location}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="font-mono text-[11px] break-all text-emerald-400 hover:underline inline-flex items-start gap-1"
+                  className="font-mono text-[11px] break-all text-blue-400 hover:underline inline-flex items-start gap-1"
                 >
                   {finding.location}
                   <ExternalLink className="w-3 h-3 shrink-0 mt-0.5" />
                 </a>
               ) : (
-                <span className="font-mono text-[11px] break-all block text-emerald-200/90">
+                <span className="font-mono text-[11px] break-all block text-blue-200/90">
                   {finding.location}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="mt-3 p-2.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-xs">
-            <div className="text-[9px] uppercase tracking-wider text-emerald-400 font-mono font-medium mb-1 flex items-center gap-1">
+          <div className="mt-3 p-2.5 rounded-md bg-blue-500/5 border border-blue-500/20 text-xs">
+            <div className="text-[9px] uppercase tracking-wider text-blue-400 font-mono font-medium mb-1 flex items-center gap-1">
               <ChevronRight className="w-3 h-3" />
               REMEDIATION
             </div>
@@ -1090,7 +1090,7 @@ const VERIFICATION_POINTS = [
   {
     title: "Fetch target HTML",
     desc: "Hard 15s timeout, 1.5MB cap. Failures are logged, not retried.",
-    color: "#10b981",
+    color: "#3b82f6",
   },
   {
     title: "Extract & fetch scripts",
@@ -1105,7 +1105,7 @@ const VERIFICATION_POINTS = [
   {
     title: "Probe 12 leak paths",
     desc: "/.env · /.git/config · /.git/HEAD · /.DS_Store · /package.json · /actuator · more.",
-    color: "#f59e0b",
+    color: "#a5b4fc",
   },
   {
     title: "Detect AI fingerprints",
@@ -1115,7 +1115,7 @@ const VERIFICATION_POINTS = [
   {
     title: "Hunt source maps",
     desc: "Probes {script}.map and parses inline //# sourceMappingURL= annotations.",
-    color: "#34d399",
+    color: "#60a5fa",
   },
 ];
 

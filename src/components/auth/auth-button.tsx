@@ -78,11 +78,11 @@ export function AuthButton() {
   if (session?.user) {
     return (
       <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-          <div className="w-6 h-6 rounded-full bg-emerald-500/30 border border-emerald-400/40 flex items-center justify-center">
-            <UserIcon className="w-3 h-3 text-emerald-300" />
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30">
+          <div className="w-6 h-6 rounded-full bg-blue-500/30 border border-blue-400/40 flex items-center justify-center">
+            <UserIcon className="w-3 h-3 text-blue-300" />
           </div>
-          <span className="text-xs text-emerald-200 font-mono truncate max-w-[140px]">
+          <span className="text-xs text-blue-200 font-mono truncate max-w-[140px]">
             {session.user.name ?? session.user.email}
           </span>
         </div>
@@ -104,16 +104,16 @@ export function AuthButton() {
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="bg-emerald-500/90 hover:bg-emerald-400 text-emerald-950 font-medium border border-emerald-300/40 shadow-[0_0_20px_-8px_rgba(16,185,129,0.5)]"
+          className="bg-blue-500/90 hover:bg-blue-400 text-blue-950 font-medium border border-blue-300/40 shadow-[0_0_20px_-8px_rgba(59, 130, 246,0.5)]"
         >
           <LogIn className="w-3.5 h-3.5 mr-1.5" />
           Login
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[420px] bg-slate-950/95 border-emerald-500/30 backdrop-blur-xl">
+      <DialogContent className="sm:max-w-[420px] bg-slate-950/95 border-blue-500/30 backdrop-blur-xl">
         <DialogHeader>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-2">
-            <ShieldCheck className="w-6 h-6 text-emerald-400" />
+          <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center mb-2">
+            <ShieldCheck className="w-6 h-6 text-blue-400" />
           </div>
           <DialogTitle className="text-foreground font-mono">
             {mode === "login" ? "Access terminal" : "Create new operator"}
@@ -183,7 +183,7 @@ export function AuthButton() {
           <Button
             type="submit"
             disabled={busy}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-medium border border-emerald-300/40 shadow-[0_0_30px_-10px_rgba(16,185,129,0.7)]"
+            className="w-full bg-blue-500 hover:bg-blue-400 text-blue-950 font-medium border border-blue-300/40 shadow-[0_0_30px_-10px_rgba(59, 130, 246,0.7)]"
           >
             {busy ? (
               <>
@@ -211,7 +211,7 @@ export function AuthButton() {
               <button
                 type="button"
                 onClick={() => setMode("register")}
-                className="text-emerald-400 hover:underline font-medium"
+                className="text-blue-400 hover:underline font-medium"
               >
                 Create one
               </button>
@@ -222,7 +222,7 @@ export function AuthButton() {
               <button
                 type="button"
                 onClick={() => setMode("login")}
-                className="text-emerald-400 hover:underline font-medium"
+                className="text-blue-400 hover:underline font-medium"
               >
                 Sign in
               </button>
