@@ -185,19 +185,54 @@ export default function Home() {
   const [clock, setClock] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Live UTC clock
+  // Live LOCAL clock (uses the viewer's own timezone)
   useEffect(() => {
     const tick = () => {
       const d = new Date();
-      const hh = String(d.getUTCHours()).padStart(2, "0");
-      const mm = String(d.getUTCMinutes()).padStart(2, "0");
-      const ss = String(d.getUTCSeconds()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      const ss = String(d.getSeconds()).padStart(2, "0");
       setClock(`${hh}:${mm}:${ss}`);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  // -------- Smooth scroll to section --------
+  const scrollToSection = useCallback((id: string) => {
+    if (id === "#") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const el = document.querySelector(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  // -------- Track active section for sidebar highlight --------
+  const [activeSection, setActiveSection] = useState<string>("#");
+  useEffect(() => {
+    const sections = ["#target", "#verification", "#detection", "#report", "#history"]
+      .map((id) => document.querySelector(id))
+      .filter(Boolean) as Element[];
+    if (sections.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible.length > 0) {
+          const id = `#${visible[0].target.id}`;
+          setActiveSection(id);
+        }
+      },
+      { rootMargin: "-20% 0px -50% 0px", threshold: [0.1, 0.25, 0.5] }
+    );
+    sections.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, [result, sessionHistory, savedScans]);
 
   const refreshSaved = useCallback(async () => {
     if (!session?.user) {
@@ -310,8 +345,16 @@ export default function Home() {
       </div>
 
       {/* ============ SIDEBAR (desktop + tablet) ============ */}
-      <aside className="hidden md:flex w-[68px] lg:w-[240px] shrink-0 sticky top-0 h-screen flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl">
-        <SidebarContent clock={clock} session={session} />
+      <aside className="hidden md:flex w-[72px] lg:w-[280px] shrink-0 sticky top-0 h-screen flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl">
+        <SidebarContent
+          clock={clock}
+          session={session}
+          activeSection={activeSection}
+          onNavClick={(id) => {
+            scrollToSection(id);
+            setMobileMenuOpen(false);
+          }}
+        />
       </aside>
 
       {/* Mobile top bar */}
@@ -378,26 +421,26 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="px-4 md:px-8 lg:px-12 py-8 md:py-12 max-w-7xl mx-auto pt-20 md:pt-12">
+        <div className="px-6 md:px-10 lg:px-16 xl:px-20 py-10 md:py-16 pt-20 md:pt-16 w-full">
           {/* ===== HERO ===== */}
-          <section className="mb-12 md:mb-16">
+          <section id="target" className="mb-14 md:mb-20 scroll-mt-24">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
               className="text-center mb-8"
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-[10px] font-mono mb-6 tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs font-mono mb-8 tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                 BOUNDED · NO LOOPS · NO POLLING
               </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-[1.05] mb-4">
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl font-bold tracking-tight leading-[1.02] mb-6">
                 <span className="text-white">Find every exposed</span>
                 <br />
                 <span className="text-gradient-cyan-violet">secret.</span>
                 <span className="text-white/50"> Before attackers do.</span>
               </h1>
-              <p className="text-sm md:text-base text-white/50 max-w-xl mx-auto leading-relaxed">
+              <p className="text-base md:text-lg text-white/50 max-w-2xl mx-auto leading-relaxed">
                 LeakGuard fetches the target, follows up to 20 scripts, probes 12 leak paths, and
                 surfaces API keys, source maps, and AI fingerprints — in a single bounded request.
               </p>
@@ -409,16 +452,16 @@ export default function Home() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="glass-panel glass-panel-hover rounded-2xl p-2 flex flex-col sm:flex-row gap-2 max-w-2xl mx-auto"
+              className="glass-panel glass-panel-hover rounded-2xl p-2.5 flex flex-col sm:flex-row gap-2.5 max-w-3xl mx-auto"
             >
               <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
                 <Input
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="pl-11 h-12 bg-transparent border-0 focus-visible:ring-0 font-mono text-sm placeholder:text-white/30"
+                  className="pl-11 h-14 bg-transparent border-0 focus-visible:ring-0 font-mono text-base placeholder:text-white/30"
                   disabled={scanning}
                   autoComplete="off"
                   spellCheck={false}
@@ -427,7 +470,7 @@ export default function Home() {
               <Button
                 type="submit"
                 disabled={scanning}
-                className="h-12 px-6 bg-white hover:bg-white/90 text-black font-semibold tracking-tight shadow-[0_0_30px_-8px_rgba(255,255,255,0.4)]"
+                className="h-14 px-8 bg-white hover:bg-white/90 text-black font-semibold tracking-tight shadow-[0_0_30px_-8px_rgba(255,255,255,0.4)]"
               >
                 {scanning ? (
                   <>
@@ -474,7 +517,7 @@ export default function Home() {
           </AnimatePresence>
 
           {/* ===== 3D VERIFICATION CONSTELLATION (centerpiece) ===== */}
-          <section className="mb-12 md:mb-16">
+          <section id="verification" className="mb-14 md:mb-20 scroll-mt-24">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -497,7 +540,7 @@ export default function Home() {
                   LIVE
                 </div>
               </div>
-              <div className="relative h-[400px] sm:h-[500px] lg:h-[600px]">
+              <div className="relative h-[500px] sm:h-[600px] lg:h-[700px] xl:h-[800px]">
                 <LeakGuardScene />
               </div>
               <div className="px-6 py-3 border-t border-white/5 text-center">
@@ -511,11 +554,11 @@ export default function Home() {
           </section>
 
           {/* ===== DETECTION MATRIX — interactive cards ===== */}
-          <section className="mb-12 md:mb-16">
+          <section id="detection" className="mb-14 md:mb-20 scroll-mt-24">
             <div className="flex items-end justify-between mb-6">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Detection Matrix</h2>
-                <p className="text-sm text-white/50 mt-1">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Detection Matrix</h2>
+                <p className="text-sm md:text-base text-white/50 mt-2">
                   Eight leak categories scanned on every request.
                 </p>
               </div>
@@ -533,13 +576,15 @@ export default function Home() {
           </section>
 
           {/* ===== SCAN RESULTS ===== */}
+          <div id="report" className="scroll-mt-24 mb-14 md:mb-20">
           {result && !scanning && (
             <ResultDashboard result={result} onExport={exportJson} onClear={clearResults} />
           )}
+          </div>
 
           {/* ===== SAVED SCANS (logged in) ===== */}
           {session?.user && (
-            <section className="mt-12">
+            <section className="mt-14">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
                   <Database className="w-4 h-4 text-cyan-300" />
@@ -579,7 +624,7 @@ export default function Home() {
 
           {/* ===== SESSION HISTORY ===== */}
           {sessionHistory.length > 0 && !scanning && (
-            <section className="mt-12">
+            <section id="history" className="mt-14 scroll-mt-24">
               <h3 className="text-base font-semibold tracking-tight flex items-center gap-2 mb-4">
                 <Activity className="w-4 h-4 text-violet-300" />
                 Session History <span className="text-white/40 text-sm">({sessionHistory.length})</span>
@@ -620,26 +665,36 @@ export default function Home() {
 // ============================================================================
 // Sidebar content (shared by desktop + tablet)
 // ============================================================================
-function SidebarContent({ clock, session }: { clock: string; session: any }) {
+function SidebarContent({
+  clock,
+  session,
+  activeSection,
+  onNavClick,
+}: {
+  clock: string;
+  session: any;
+  activeSection: string;
+  onNavClick: (id: string) => void;
+}) {
   return (
     <>
       {/* Logo */}
-      <div className="px-4 lg:px-5 py-5 border-b border-white/5">
+      <div className="px-4 lg:px-6 py-5 border-b border-white/5">
         <div className="flex items-center gap-2.5">
           <motion.div
             initial={{ rotate: -8, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="w-9 h-9 rounded-xl border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center shrink-0"
+            className="w-10 h-10 rounded-xl border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center shrink-0"
           >
-            <ShieldAlert className="w-4 h-4 text-cyan-300" />
+            <ShieldAlert className="w-5 h-5 text-cyan-300" />
           </motion.div>
           <div className="hidden lg:block">
-            <h1 className="text-sm font-bold tracking-tight leading-none">
+            <h1 className="text-base font-bold tracking-tight leading-none">
               <span className="text-white">LEAK</span>
               <span className="text-cyan-300">GUARD</span>
             </h1>
-            <p className="text-[9px] text-white/40 mt-1 font-mono uppercase tracking-[0.2em]">
+            <p className="text-[10px] text-white/40 mt-1.5 font-mono uppercase tracking-[0.2em]">
               AI Security Scanner
             </p>
           </div>
@@ -647,42 +702,55 @@ function SidebarContent({ clock, session }: { clock: string; session: any }) {
       </div>
 
       {/* Status block */}
-      <div className="px-4 lg:px-5 py-4 border-b border-white/5 space-y-2">
+      <div className="px-4 lg:px-6 py-4 border-b border-white/5 space-y-2">
         <StatusRow icon={Wifi} label="SYS" value="ONLINE" color="text-cyan-300" pulse />
-        <StatusRow label="UTC" value={clock || "--:--:--"} mono />
+        <StatusRow label="LOCAL" value={clock || "--:--:--"} mono />
         <StatusRow icon={Signal} label="CHN" value="STABLE" />
       </div>
 
       {/* Nav */}
       <nav className="px-3 lg:px-3 py-4 flex-1 space-y-0.5">
-        <p className="hidden lg:block text-[9px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
           Sections
         </p>
-        {NAV_ITEMS.map((n) => (
-          <a
-            key={n.label}
-            href={n.href}
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-white/60 hover:bg-white/5 hover:text-white transition group"
-          >
-            <n.icon className="w-4 h-4 text-white/40 group-hover:text-cyan-300 shrink-0" />
-            <span className="hidden lg:block flex-1 font-medium">{n.label}</span>
-            <ChevronRight className="hidden lg:block w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
-          </a>
-        ))}
+        {NAV_ITEMS.map((n) => {
+          const active = activeSection === n.href;
+          return (
+            <button
+              key={n.label}
+              onClick={() => onNavClick(n.href)}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-sm transition group relative ${
+                active
+                  ? "bg-cyan-400/10 text-cyan-300"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="activeNav"
+                  className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-cyan-400"
+                />
+              )}
+              <n.icon className={`w-4 h-4 shrink-0 ${active ? "text-cyan-300" : "text-white/40 group-hover:text-cyan-300"}`} />
+              <span className="hidden lg:block flex-1 font-medium text-left">{n.label}</span>
+              <ChevronRight className={`hidden lg:block w-3 h-3 transition ${active ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+            </button>
+          );
+        })}
       </nav>
 
       {/* Operator */}
       <div className="px-3 lg:px-3 py-3 border-t border-white/5">
-        <p className="hidden lg:block text-[9px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
           Operator
         </p>
         <AuthButton />
       </div>
 
       {/* Footer */}
-      <div className="px-4 lg:px-5 py-3 border-t border-white/5 text-[9px] font-mono text-white/30 flex items-center justify-between">
-        <span className="flex items-center gap-1">
-          <CircuitBoard className="w-2.5 h-2.5" />
+      <div className="px-4 lg:px-6 py-3 border-t border-white/5 text-[10px] font-mono text-white/30 flex items-center justify-between">
+        <span className="flex items-center gap-1.5">
+          <CircuitBoard className="w-3 h-3" />
           <span className="hidden lg:inline">v1.0</span>
         </span>
         <span className="hidden lg:inline">NO-LOOP</span>
@@ -707,9 +775,9 @@ function StatusRow({
   pulse?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between text-[10px] font-mono">
+    <div className="flex items-center justify-between text-[11px] font-mono">
       <span className="text-white/40 uppercase tracking-wider flex items-center gap-1.5">
-        {Icon && <Icon className="w-2.5 h-2.5" />}
+        {Icon && <Icon className="w-3 h-3" />}
         <span className="hidden lg:inline">{label}</span>
       </span>
       <span className={`flex items-center gap-1.5 ${color} ${mono ? "tabular-nums" : ""}`}>
@@ -919,7 +987,7 @@ function ResultDashboard({
             <Shield className="w-4 h-4 text-cyan-300" />
             <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">SCAN REPORT</span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
             {total === 0 ? "Target is clean" : `${total} ${total === 1 ? "finding" : "findings"} exposed`}
           </h2>
           <p className="text-sm text-white/50 mt-1 font-mono break-all">{result.targetUrl}</p>
@@ -1271,7 +1339,7 @@ function HistoryCard({
 // Constants
 // ============================================================================
 const NAV_ITEMS = [
-  { label: "Target", icon: Crosshair, href: "#" },
+  { label: "Target", icon: Crosshair, href: "#target" },
   { label: "Verification", icon: Box, href: "#verification" },
   { label: "Detection", icon: Fingerprint, href: "#detection" },
   { label: "Report", icon: FileWarning, href: "#report" },
