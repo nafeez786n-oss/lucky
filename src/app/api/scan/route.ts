@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
-import { scanTarget } from "@/lib/leak-scanner";
+import { scanTarget, type Finding, type ScanResult } from "@/lib/leak-scanner";
+import { authOptions } from "@/lib/auth/auth-options";
+import { getServerSession } from "next-auth";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function countBySeverity(findings: Finding[]) {
+  const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  for (const f of findings) c[f.severity]++;
+  return c;
+}
 
 /**
  * POST /api/scan
  * Body: { "url": "https://example.com" }
  *
  * Bounded, single-shot scan. Returns a complete ScanResult.
- * No polling, no streaming, no loops on the client.
+ * If the caller is authenticated, the scan is also persisted to the DB.
  */
 export async function POST(req: Request) {
   let body: any;
@@ -36,9 +45,9 @@ export async function POST(req: Request) {
     );
   }
 
+  let result: ScanResult;
   try {
-    const result = await scanTarget(url);
-    return NextResponse.json(result, { status: 200 });
+    result = await scanTarget(url);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
@@ -57,6 +66,42 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  // If authenticated, persist to DB
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.email) {
+      const user = await db.user.findUnique({ where: { email: session.user.email } });
+      if (user) {
+        const counts = countBySeverity(result.findings);
+        await db.scanRecord.create({
+          data: {
+            userId: user.id,
+            targetUrl: result.targetUrl,
+            startedAt: new Date(result.startedAt),
+            finishedAt: new Date(result.finishedAt),
+            durationMs: result.durationMs,
+            fetchedBytes: result.fetchedBytes,
+            scriptCount: result.scriptCount,
+            fileProbeCount: result.fileProbeCount,
+            findingCount: result.findings.length,
+            criticalCount: counts.critical,
+            highCount: counts.high,
+            mediumCount: counts.medium,
+            lowCount: counts.low,
+            infoCount: counts.info,
+            ok: result.ok,
+            errorsJson: JSON.stringify(result.errors),
+            findingsJson: JSON.stringify(result.findings),
+          },
+        });
+      }
+    }
+  } catch {
+    // persistence failure must NOT fail the scan response
+  }
+
+  return NextResponse.json(result, { status: 200 });
 }
 
 export async function GET() {
