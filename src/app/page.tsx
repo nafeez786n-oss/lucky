@@ -359,10 +359,12 @@ export default function Home() {
                       </h3>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Each orb orbiting the target represents one category of leak that
-                      LeakGuard probes on every scan. The wireframe globe is your target
-                      site; the rotating sweep is the scanner sweeping across every reachable
-                      path and script bundle.
+                      The 3D mockup above shows exactly what happens when you hit EXECUTE:
+                      LeakGuard treats the target like a browser window, sweeps a vertical
+                      scan beam left-to-right across the page and its scripts, and pinpoints
+                      each leak marker (red/amber orbs above the page surface). The orbiting
+                      magnifier indicates live inspection. Connection beams trace each leak
+                      to its category label.
                     </p>
                   </div>
 
