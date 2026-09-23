@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,6 +26,8 @@ import {
   Zap,
   Activity,
   ChevronRight,
+  Box,
+  ScanLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +39,20 @@ import { toast } from "sonner";
 import type { ScanResult, Finding } from "@/lib/leak-scanner";
 import { SEVERITY_META, CATEGORY_META, severityCount } from "@/lib/leak-ui";
 import { AuthButton } from "@/components/auth/auth-button";
+
+// 3D scene is heavy + uses WebGL → load it client-side only, on demand
+const LeakGuardScene = dynamic(
+  () => import("@/components/three/leak-guard-scene").then((m) => m.LeakGuardScene),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] flex items-center justify-center text-emerald-500/60 font-mono text-xs">
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Initializing 3D scanner…
+      </div>
+    ),
+  }
+);
 
 const SCANNER_STAGES = [
   { label: "Validating target URL", icon: Globe },
@@ -298,6 +315,91 @@ export default function Home() {
               </CardContent>
             </Card>
           </motion.div>
+        </section>
+
+        {/* 3D verification section */}
+        <section className="mb-8">
+          <Card className="border-emerald-500/30 glass overflow-hidden">
+            <CardHeader className="border-b border-emerald-500/15 bg-slate-950/40">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                  <Box className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-mono text-emerald-300">
+                    VERIFICATION MATRIX
+                  </CardTitle>
+                  <CardDescription className="text-xs font-mono text-muted-foreground mt-0.5">
+                    Interactive 3D visualization of LeakGuard&apos;s detection surface
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="grid lg:grid-cols-[1fr_320px]">
+                {/* 3D canvas */}
+                <div className="relative h-[420px] sm:h-[480px] bg-gradient-to-b from-emerald-500/5 to-transparent border-b lg:border-b-0 lg:border-r border-emerald-500/15">
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2 py-1 rounded border border-emerald-500/20 bg-slate-950/60 text-[10px] font-mono text-emerald-400/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    LIVE · DRAG TO ROTATE
+                  </div>
+                  <div className="absolute bottom-3 right-3 z-10 text-[10px] font-mono text-muted-foreground/60">
+                    webgl · three.js
+                  </div>
+                  <LeakGuardScene />
+                </div>
+
+                {/* Brief verification text */}
+                <div className="p-5 space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <ScanLine className="w-3.5 h-3.5 text-emerald-400" />
+                      <h3 className="text-xs font-mono font-semibold text-emerald-300 tracking-wider uppercase">
+                        What LeakGuard verifies
+                      </h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Each orb orbiting the target represents one category of leak that
+                      LeakGuard probes on every scan. The wireframe globe is your target
+                      site; the rotating sweep is the scanner sweeping across every reachable
+                      path and script bundle.
+                    </p>
+                  </div>
+
+                  <ul className="space-y-2.5">
+                    {VERIFICATION_POINTS.map((p, i) => (
+                      <motion.li
+                        key={p.title}
+                        initial={{ opacity: 0, x: -6 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: i * 0.06 }}
+                        className="flex items-start gap-2.5 text-xs"
+                      >
+                        <span
+                          className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-mono shrink-0 mt-0.5"
+                          style={{ background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55` }}
+                        >
+                          {i + 1}
+                        </span>
+                        <div>
+                          <span className="font-mono font-medium text-foreground">{p.title}</span>
+                          <span className="text-muted-foreground block mt-0.5 leading-snug">{p.desc}</span>
+                        </div>
+                      </motion.li>
+                    ))}
+                  </ul>
+
+                  <div className="pt-3 border-t border-emerald-500/15">
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-500/70">
+                      <Shield className="w-3 h-3" />
+                      <span>BOUNDED · NO LOOPS · NO INFINITE POLLING</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         {/* Scanning radar */}
@@ -981,3 +1083,37 @@ const FEATURE_CARDS = [
     icon: ShieldAlert,
   },
 ];
+
+const VERIFICATION_POINTS = [
+  {
+    title: "Fetch target HTML",
+    desc: "Hard 15s timeout, 1.5MB cap. Failures are logged, not retried.",
+    color: "#10b981",
+  },
+  {
+    title: "Extract & fetch scripts",
+    desc: "Up to 20 <script> sources, 10s each, 600KB cap per file.",
+    color: "#06b6d4",
+  },
+  {
+    title: "Pattern-match secrets",
+    desc: "AWS / OpenAI / Anthropic / Google AI / GitHub PAT / Stripe / Slack / JWT / PEM keys.",
+    color: "#ef4444",
+  },
+  {
+    title: "Probe 12 leak paths",
+    desc: "/.env · /.git/config · /.git/HEAD · /.DS_Store · /package.json · /actuator · more.",
+    color: "#f59e0b",
+  },
+  {
+    title: "Detect AI fingerprints",
+    desc: "v0 · Lovable · Bolt · Cursor · Claude · ChatGPT — in meta tags, comments, and JS.",
+    color: "#a78bfa",
+  },
+  {
+    title: "Hunt source maps",
+    desc: "Probes {script}.map and parses inline //# sourceMappingURL= annotations.",
+    color: "#34d399",
+  },
+];
+
