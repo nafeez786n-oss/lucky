@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useSession, signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -75,6 +76,10 @@ export function AuthOverlay({
       setVerifyProgress(0);
     }
   }, [open, initialMode]);
+
+  // ---- Portal mounting state (avoid SSR issues with document.body) ----
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Close on ESC
   useEffect(() => {
@@ -202,9 +207,14 @@ export function AuthOverlay({
   };
 
   // ---- Render ----
-  if (!open) return null;
+  // IMPORTANT: We render via a Portal to document.body so the overlay escapes
+  // any ancestor that creates a containing block for position:fixed (e.g. an
+  // ancestor with `backdrop-filter`, `transform`, `filter`, `will-change`, etc.).
+  // The sidebar uses `backdrop-blur-xl` which would otherwise trap the overlay
+  // inside the 280px sidebar column.
+  if (!open || !mounted) return null;
 
-  return (
+  const overlay = (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -527,6 +537,8 @@ export function AuthOverlay({
       </motion.div>
     </AnimatePresence>
   );
+
+  return createPortal(overlay, document.body);
 }
 
 // ============================================================================
