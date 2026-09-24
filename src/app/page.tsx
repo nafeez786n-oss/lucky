@@ -400,7 +400,7 @@ export default function Home() {
       <main className="flex-1 min-w-0 relative">
         {/* Top status strip (desktop only) */}
         <div className="hidden md:block border-b border-white/5 bg-black/30 backdrop-blur-md">
-          <div className="px-6 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
+          <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
             <div className="flex items-center gap-5 text-white/40">
               <span className="flex items-center gap-1.5">
                 <Crosshair className="w-3 h-3" />
@@ -421,7 +421,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="px-6 md:px-10 lg:px-16 xl:px-20 py-10 md:py-16 pt-20 md:pt-16 w-full">
+        <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-10 md:py-16 pt-20 md:pt-16 w-full">
           {/* ===== HERO ===== */}
           <section id="target" className="mb-14 md:mb-20 scroll-mt-24">
             <motion.div

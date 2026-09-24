@@ -187,10 +187,10 @@
       0 0 20px -6px rgba(167, 139, 250, 0.3);
   }
 
-  /* Subtle noise overlay — adds texture without being distracting */
-  .noise-overlay {
-    position: relative;
-  }
+  /* Subtle noise overlay — adds texture without being distracting.
+     NOTE: do NOT set `position` here — it would override the parent's
+     own positioning utility (e.g. Tailwind `fixed`). The ::before
+     will use whichever positioning context the parent provides. */
   .noise-overlay::before {
     content: "";
     position: absolute;
