@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -37,6 +37,10 @@ import {
   Brain,
   CheckCircle2,
   AlertTriangle,
+  User as UserIcon,
+  Mail,
+  Calendar,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,6 +57,7 @@ import { toast } from "sonner";
 import type { ScanResult, Finding } from "@/lib/leak-scanner";
 import { SEVERITY_META, CATEGORY_META, severityCount } from "@/lib/leak-ui";
 import { AuthButton } from "@/components/auth/auth-button";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const LeakGuardScene = dynamic(
   () => import("@/components/three/leak-guard-scene").then((m) => m.LeakGuardScene),
@@ -214,7 +219,7 @@ export default function Home() {
   // -------- Track active section for sidebar highlight --------
   const [activeSection, setActiveSection] = useState<string>("#");
   useEffect(() => {
-    const sections = ["#target", "#verification", "#detection", "#report", "#history"]
+    const sections = ["#target", "#verification", "#detection", "#report", "#history", "#profile"]
       .map((id) => document.querySelector(id))
       .filter(Boolean) as Element[];
     if (sections.length === 0) return;
@@ -341,7 +346,9 @@ export default function Home() {
       {/* 3D wireframe + grid + scanline background */}
       <div className="fixed inset-0 -z-10 pointer-events-none noise-overlay">
         <div className="absolute inset-0 bg-grid-fine scanline-overlay opacity-60" />
-        <BackgroundScene />
+        <ErrorBoundary>
+          <BackgroundScene />
+        </ErrorBoundary>
       </div>
 
       {/* ============ SIDEBAR (desktop + tablet) ============ */}
@@ -541,7 +548,9 @@ export default function Home() {
                 </div>
               </div>
               <div className="relative h-[500px] sm:h-[600px] lg:h-[700px] xl:h-[800px]">
-                <LeakGuardScene />
+                <ErrorBoundary>
+                  <LeakGuardScene />
+                </ErrorBoundary>
               </div>
               <div className="px-6 py-3 border-t border-white/5 text-center">
                 <p className="text-xs text-white/50 max-w-2xl mx-auto">
@@ -620,6 +629,14 @@ export default function Home() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* ===== PROFILE (logged-in only — only the user can see their own PII) ===== */}
+          {session?.user && (
+            <ProfileSection
+              email={session.user.email ?? ""}
+              name={session.user.name ?? null}
+            />
           )}
 
           {/* ===== SESSION HISTORY ===== */}
@@ -931,6 +948,240 @@ function ScanProgress({ currentStage }: { currentStage: number }) {
           </p>
         </div>
         <span className="animate-blink text-cyan-300 font-mono">▌</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Profile section — private view of operator's own account info.
+// This is the ONLY place in the website where the user's email/name is
+// rendered. The sidebar chip hides all PII.
+// ============================================================================
+type ProfileData = {
+  ok: boolean;
+  profile?: {
+    email: string;
+    name: string | null;
+    createdAt: string;
+    scanCount: number;
+    lastScan: {
+      targetUrl: string;
+      createdAt: string;
+      findingCount: number;
+      criticalCount: number;
+      highCount: number;
+    } | null;
+  };
+  error?: string;
+};
+
+function ProfileSection({ email, name }: { email: string; name: string | null }) {
+  const [data, setData] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile", { method: "GET" });
+        const json = await res.json();
+        if (mounted) setData(json);
+      } catch {
+        if (mounted) setData({ ok: false, error: "Failed to load profile" });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [email]);
+
+  // Avatar initials from email or name
+  const initials = useMemo(() => {
+    const src = name || email || "?";
+    const parts = src.split(/[\s@.]+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }, [email, name]);
+
+  const displayName = name || email.split("@")[0];
+  const memberSince = data?.profile?.createdAt
+    ? new Date(data.profile.createdAt).toLocaleDateString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+      })
+    : "—";
+  const scanCount = data?.profile?.scanCount ?? 0;
+  const lastScan = data?.profile?.lastScan;
+
+  return (
+    <motion.section
+      id="profile"
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4 }}
+      className="mt-14 scroll-mt-24"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
+          <UserIcon className="w-4 h-4 text-cyan-300" />
+          Operator Profile
+        </h3>
+        <Badge className="text-[10px] font-mono bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
+          PRIVATE
+        </Badge>
+      </div>
+
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        {/* Header band with avatar + identity */}
+        <div className="relative p-6 md:p-8 border-b border-white/5 bg-gradient-to-br from-cyan-400/5 via-transparent to-violet-400/5">
+          <div className="absolute top-3 right-4 text-[9px] font-mono text-white/30 tracking-wider">
+            VISIBLE ONLY TO YOU
+          </div>
+          <div className="flex flex-col sm:flex-row items-start gap-5">
+            {/* Avatar */}
+            <div className="relative">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                whileInView={{ scale: 1, opacity: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, type: "spring" }}
+                className="w-20 h-20 rounded-2xl border border-cyan-400/40 bg-gradient-to-br from-cyan-400/20 to-violet-400/20 flex items-center justify-center shadow-[0_0_30px_-8px_rgba(34,211,238,0.4)]"
+              >
+                <span className="text-3xl font-bold tracking-tight text-white">{initials}</span>
+              </motion.div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cyan-400 border-2 border-background flex items-center justify-center">
+                <CheckCircle2 className="w-3 h-3 text-black" />
+              </div>
+            </div>
+
+            {/* Identity */}
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-1">
+                AUTHENTICATED OPERATOR
+              </div>
+              <h4 className="text-2xl font-bold tracking-tight mb-1 truncate">{displayName}</h4>
+              {loading ? (
+                <div className="flex items-center gap-2 text-xs text-white/40">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Loading profile…
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-sm text-white/60 font-mono">
+                  <Mail className="w-3.5 h-3.5 text-white/40" />
+                  <span className="truncate">{email}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 text-xs text-white/40 font-mono mt-2">
+                <Calendar className="w-3 h-3" />
+                Member since {memberSince}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-6 md:p-8">
+          <ProfileStatCard
+            label="Total Scans"
+            value={loading ? "—" : String(scanCount)}
+            icon={Activity}
+            accent="cyan"
+          />
+          <ProfileStatCard
+            label="Critical Found"
+            value={loading ? "—" : String(lastScan?.criticalCount ?? 0)}
+            icon={AlertTriangle}
+            accent="red"
+          />
+          <ProfileStatCard
+            label="High Found"
+            value={loading ? "—" : String(lastScan?.highCount ?? 0)}
+            icon={ShieldAlert}
+            accent="orange"
+          />
+        </div>
+
+        {/* Last scan summary */}
+        {lastScan && (
+          <div className="px-6 md:px-8 pb-6 md:pb-8">
+            <div className="glass-panel rounded-xl p-4 border-cyan-400/20">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-2 flex items-center gap-1.5">
+                <Activity className="w-3 h-3" />
+                Last Scan
+              </div>
+              <p className="text-sm font-mono text-white/80 break-all mb-1">{lastScan.targetUrl}</p>
+              <div className="flex items-center gap-3 text-[10px] font-mono text-white/40">
+                <span>{new Date(lastScan.createdAt).toLocaleString()}</span>
+                <span>·</span>
+                <span>{lastScan.findingCount} findings</span>
+                {lastScan.criticalCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="text-red-400">{lastScan.criticalCount} crit</span>
+                  </>
+                )}
+                {lastScan.highCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="text-orange-400">{lastScan.highCount} high</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action footer */}
+        <div className="px-6 md:px-8 py-4 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <p className="text-[10px] font-mono text-white/40 max-w-md">
+            Your email and name are only visible here — never exposed elsewhere in the website.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut({ redirect: false })}
+            className="text-white/60 hover:text-red-300 hover:bg-red-400/5 font-mono"
+          >
+            <LogOut className="w-3.5 h-3.5 mr-1.5" />
+            Sign out
+          </Button>
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function ProfileStatCard({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  accent: "cyan" | "red" | "orange";
+}) {
+  const accentMap = {
+    cyan: { hex: "#22d3ee", tailwind: "text-cyan-300" },
+    red: { hex: "#ef4444", tailwind: "text-red-400" },
+    orange: { hex: "#f97316", tailwind: "text-orange-400" },
+  };
+  const a = accentMap[accent];
+  return (
+    <div className="glass-panel rounded-xl p-4 relative overflow-hidden">
+      <div
+        className="absolute top-0 right-0 w-20 h-20 rounded-full blur-3xl opacity-15"
+        style={{ background: a.hex }}
+      />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">{label}</p>
+          <p className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}>{value}</p>
+        </div>
+        <Icon className="w-4 h-4 opacity-50" style={{ color: a.hex }} />
       </div>
     </div>
   );
@@ -1344,4 +1595,5 @@ const NAV_ITEMS = [
   { label: "Detection", icon: Fingerprint, href: "#detection" },
   { label: "Report", icon: FileWarning, href: "#report" },
   { label: "History", icon: Activity, href: "#history" },
+  { label: "Profile", icon: UserIcon, href: "#profile" },
 ];

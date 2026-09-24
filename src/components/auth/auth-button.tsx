@@ -18,12 +18,14 @@ export function AuthButton() {
   }, []);
   const closeOverlay = useCallback(() => setOverlayOpen(false), []);
 
-  // Render the trigger button based on auth state.
-  // NOTE: AuthOverlay is rendered OUTSIDE the conditional branches below
-  // so it doesn't unmount when the session changes mid-flow. Otherwise
-  // React would unmount the overlay (losing internal step state) the
-  // moment NextAuth refreshes the session after a successful sign-in,
-  // flashing the user back to step 1.
+  /**
+   * PRIVACY NOTE:
+   * The sidebar chip deliberately does NOT expose the user's email/name.
+   * Only a generic "OPERATOR" label + avatar icon is shown. To see their
+   * own profile details (name, email, member-since, scan count, etc.),
+   * the user navigates to the private #profile section, which only
+   * renders when logged in and is visible only to themselves.
+   */
   let trigger: React.ReactNode;
   if (status === "loading") {
     trigger = (
@@ -35,20 +37,30 @@ export function AuthButton() {
   } else if (session?.user) {
     trigger = (
       <div className="flex items-center gap-2 w-full">
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-cyan-400/20 flex-1 min-w-0">
+        <a
+          href="#profile"
+          onClick={(e) => {
+            e.preventDefault();
+            const el = document.querySelector("#profile");
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-cyan-400/20 flex-1 min-w-0 hover:bg-cyan-400/5 hover:border-cyan-400/40 transition cursor-pointer group"
+          title="View profile"
+        >
           <div className="w-6 h-6 rounded-full bg-cyan-400/15 border border-cyan-400/40 flex items-center justify-center shrink-0">
             <UserIcon className="w-3 h-3 text-cyan-300" />
           </div>
-          <span className="text-[11px] text-white/70 font-mono truncate">
-            {session.user.name ?? session.user.email}
+          <span className="text-[11px] text-white/60 font-mono uppercase tracking-wider group-hover:text-cyan-300 transition">
+            Operator
           </span>
-        </div>
+        </a>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => signOut({ redirect: false })}
           className="text-white/50 hover:text-red-300 hover:bg-red-400/5 shrink-0 px-2"
           aria-label="Sign out"
+          title="Sign out"
         >
           <LogOut className="w-3.5 h-3.5" />
         </Button>
