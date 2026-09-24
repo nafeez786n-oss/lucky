@@ -86,13 +86,20 @@ export function AuthOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, busy, onClose]);
 
-  // If already logged in (e.g. session appeared), close
+  // Auto-close after the GRANTED step is shown (1.8s)
+  // NOTE: do NOT depend on `session?.user` here — useSession() doesn't
+  // refresh synchronously after signIn() returns, so waiting for the
+  // session would hang the overlay on the "Access granted" screen.
+  // NOTE 2: `onClose` MUST be a stable callback (useCallback) in the parent,
+  // otherwise it'll be a new reference on every parent re-render (which fires
+  // when useSession updates after signIn), causing this effect to cleanup+rerun
+  // in a tight loop — the 1.8s timer never gets to fire.
   useEffect(() => {
-    if (open && session?.user && step === "granted") {
+    if (open && step === "granted") {
       const t = setTimeout(onClose, 1800);
       return () => clearTimeout(t);
     }
-  }, [open, session, step, onClose]);
+  }, [open, step, onClose]);
 
   // Cleanup verify timers on unmount
   useEffect(() => {
