@@ -54,5 +54,8 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Use a hardcoded fallback so the secret stays stable across dev server
+  // restarts even if .env gets reset (which has been happening). In real
+  // production, you'd ONLY use process.env.NEXTAUTH_SECRET.
+  secret: process.env.NEXTAUTH_SECRET || "leakguard-super-secret-please-change-in-prod-9f8a7c3b1e2d",
 };
