@@ -41,6 +41,10 @@ import {
   Mail,
   Calendar,
   LogOut,
+  ShieldCheck,
+  EyeOff,
+  Server,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -979,12 +983,14 @@ type ProfileData = {
 function ProfileSection({ email, name }: { email: string; name: string | null }) {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
     (async () => {
       try {
-        const res = await fetch("/api/profile", { method: "GET" });
+        const res = await fetch("/api/profile", { method: "GET", cache: "no-store" });
         const json = await res.json();
         if (mounted) setData(json);
       } catch {
@@ -994,7 +1000,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
       }
     })();
     return () => { mounted = false; };
-  }, [email]);
+  }, [email, reloadKey]);
 
   // Avatar initials from email or name
   const initials = useMemo(() => {
@@ -1006,13 +1012,15 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
   }, [email, name]);
 
   const displayName = name || email.split("@")[0];
-  const memberSince = data?.profile?.createdAt
-    ? new Date(data.profile.createdAt).toLocaleDateString(undefined, {
+  const hasError = data && !data.ok;
+  const profile = data?.profile;
+  const memberSince = profile?.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString(undefined, {
         year: "numeric", month: "short", day: "numeric",
       })
     : "—";
-  const scanCount = data?.profile?.scanCount ?? 0;
-  const lastScan = data?.profile?.lastScan;
+  const scanCount = profile?.scanCount ?? 0;
+  const lastScan = profile?.lastScan;
 
   return (
     <motion.section
@@ -1067,6 +1075,16 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Loading profile…
                 </div>
+              ) : hasError ? (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-red-400 font-mono">Failed to load</span>
+                  <button
+                    onClick={() => setReloadKey(k => k + 1)}
+                    className="text-cyan-300 hover:text-cyan-200 underline font-mono"
+                  >
+                    retry
+                  </button>
+                </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-sm text-white/60 font-mono">
                   <Mail className="w-3.5 h-3.5 text-white/40" />
@@ -1075,7 +1093,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
               )}
               <div className="flex items-center gap-1.5 text-xs text-white/40 font-mono mt-2">
                 <Calendar className="w-3 h-3" />
-                Member since {memberSince}
+                Member since {loading ? "…" : memberSince}
               </div>
             </div>
           </div>
@@ -1132,6 +1150,38 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
             </div>
           </div>
         )}
+
+        {/* === TRUST SLOGANS === */}
+        <div className="px-6 md:px-8 pb-6 md:pb-8">
+          <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.03] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="w-4 h-4 text-cyan-300" />
+              <h5 className="text-xs font-mono uppercase tracking-wider text-cyan-300">
+                Trust & Security
+              </h5>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {TRUST_SLOGANS.map((s, i) => (
+                <motion.div
+                  key={s.title}
+                  initial={{ opacity: 0, y: 6 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.3, delay: i * 0.06 }}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5 hover:border-cyan-400/20 transition group"
+                >
+                  <div className="w-8 h-8 rounded-lg border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center shrink-0 group-hover:scale-110 transition">
+                    <s.icon className="w-3.5 h-3.5 text-cyan-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-white/90 mb-0.5">{s.title}</p>
+                    <p className="text-[11px] text-white/50 leading-snug">{s.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* Action footer */}
         <div className="px-6 md:px-8 py-4 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1597,3 +1647,38 @@ const NAV_ITEMS = [
   { label: "History", icon: Activity, href: "#history" },
   { label: "Profile", icon: UserIcon, href: "#profile" },
 ];
+
+// Trust slogans rendered inside the Profile section
+const TRUST_SLOGANS: { title: string; desc: string; icon: LucideIcon }[] = [
+  {
+    title: "End-to-end encrypted",
+    desc: "Credentials never leave your browser unencrypted — bcrypt-hashed at rest.",
+    icon: Lock,
+  },
+  {
+    title: "Zero-knowledge auth",
+    desc: "We can't see your password — only the irreversibly-hashed digest.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "No third-party tracking",
+    desc: "No analytics, no ads, no behavioral trackers. Ever.",
+    icon: EyeOff,
+  },
+  {
+    title: "Bounded execution",
+    desc: "Every scan has hard timeouts — never hangs, never polls, never loops.",
+    icon: Server,
+  },
+  {
+    title: "Open detection patterns",
+    desc: "All leak-detection regex is open and auditable in the source.",
+    icon: FileCheck2,
+  },
+  {
+    title: "Operator-owned data",
+    desc: "Your scan history belongs to you — clear it anytime, no questions.",
+    icon: UserIcon,
+  },
+];
+
