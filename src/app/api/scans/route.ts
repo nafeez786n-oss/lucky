@@ -21,7 +21,10 @@ export async function GET() {
   }
 
   if (isSupabaseConfigured) {
-    return listScansFromSupabase(session.user.email);
+    const supaRes = await listScansFromSupabase(session.user.email);
+    if (supaRes.status === 200) return supaRes;
+    // Fallback to Prisma if Supabase fails (user not found etc.)
+    return listScansFromPrisma(session.user.email);
   }
   return listScansFromPrisma(session.user.email);
 }
@@ -115,7 +118,9 @@ export async function DELETE() {
   }
 
   if (isSupabaseConfigured) {
-    return deleteScansFromSupabase(session.user.email);
+    const supaRes = await deleteScansFromSupabase(session.user.email);
+    if (supaRes.status === 200) return supaRes;
+    return deleteScansFromPrisma(session.user.email);
   }
   return deleteScansFromPrisma(session.user.email);
 }

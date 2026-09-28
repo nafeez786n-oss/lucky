@@ -23,9 +23,35 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
 
-  // ===== Supabase path =====
+  // ===== Supabase path (with Prisma fallback) =====
   if (isSupabaseConfigured) {
-    return getProfileFromSupabase(session.user.email);
+    const supaRes = await getProfileFromSupabase(session.user.email);
+    // If Supabase found the user, return the data
+    if (supaRes.status === 200) return supaRes;
+    // If Supabase returned 404 (user not in Supabase), try Prisma + auto-sync
+    if (supaRes.status === 404) {
+      // Try Prisma/SQLite
+      const prismaRes = await getProfileFromPrisma(session.user.email);
+      if (prismaRes.status === 200) {
+        // User found in SQLite but not Supabase → auto-sync them
+        try {
+          const user = await db.user.findUnique({
+            where: { email: session.user.email },
+            select: { email: true, name: true, passwordHash: true },
+          });
+          if (user) {
+            const supabase = getServerSupabase();
+            await supabase.from("users").upsert({
+              email: user.email,
+              name: user.name,
+              password_hash: user.passwordHash,
+            }, { onConflict: "email" });
+          }
+        } catch { /* non-blocking */ }
+        return prismaRes;
+      }
+    }
+    return supaRes;
   }
 
   // ===== Prisma/SQLite fallback path =====

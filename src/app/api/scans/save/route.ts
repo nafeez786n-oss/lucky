@@ -31,12 +31,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
 
-  // ===== Supabase path =====
+  // ===== Supabase path (with Prisma fallback + auto-sync) =====
   if (isSupabaseConfigured) {
-    return saveToSupabase(req, session.user.email);
+    const reqClone = req.clone(); // preserve body for retry
+    const supaRes = await saveToSupabase(req, session.user.email);
+    if (supaRes.status === 200) return supaRes;
+    if (supaRes.status === 404) {
+      try {
+        const user = await db.user.findUnique({
+          where: { email: session.user.email },
+          select: { email: true, name: true, passwordHash: true },
+        });
+        if (user) {
+          const supabase = getServerSupabase();
+          await supabase.from("users").upsert({
+            email: user.email, name: user.name, password_hash: user.passwordHash,
+          }, { onConflict: "email" });
+          const retryRes = await saveToSupabase(reqClone, session.user.email);
+          if (retryRes.status === 200) return retryRes;
+        }
+      } catch { /* non-blocking */ }
+      return saveToPrisma(reqClone, session.user.email);
+    }
+    return supaRes;
   }
 
-  // ===== Prisma/SQLite fallback path =====
   return saveToPrisma(req, session.user.email);
 }
 
