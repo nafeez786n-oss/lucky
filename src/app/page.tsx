@@ -199,6 +199,13 @@ export default function Home() {
   const [clock, setClock] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Track the latest session in a ref so callbacks/handlers that are set up
+  // once (on mount) can always access the current session without stale closures.
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   // Live LOCAL clock (uses the viewer's own timezone)
   useEffect(() => {
     const tick = () => {
@@ -262,13 +269,17 @@ export default function Home() {
   }, [result, sessionHistory, savedScans]);
 
   const refreshSaved = useCallback(async () => {
-    if (!session?.user) {
+    // Use sessionRef.current instead of session to avoid stale closure
+    // (this callback is captured by the socket event handlers which are
+    // set up once on mount, so the session value would be null from the
+    // initial render if we used the closure variable directly)
+    if (!sessionRef.current?.user) {
       setSavedScans([]);
       return;
     }
     setLoadingSaved(true);
     try {
-      const res = await fetch("/api/scans", { method: "GET" });
+      const res = await fetch("/api/scans", { method: "GET", cache: "no-store" });
       const data = await res.json();
       if (data.ok) setSavedScans(data.scans);
     } catch {
@@ -276,11 +287,11 @@ export default function Home() {
     } finally {
       setLoadingSaved(false);
     }
-  }, [session]);
+  }, []);
 
   useEffect(() => {
     refreshSaved();
-  }, [refreshSaved]);
+  }, [refreshSaved, session]);
 
   // -------- WebSocket connection to the scanner service (port 3030) --------
   // Real-time scan progress: stage events fire as the scanner actually
@@ -289,12 +300,7 @@ export default function Home() {
   // access — it just runs the scan and emits events. The frontend
   // POSTs the final result to /api/scans/save for persistence.
   const socketRef = useRef<Socket | null>(null);
-  // Track the latest session in a ref so the socket event handlers (which are
-  // set up once on mount) can always access the current session without stale closures.
-  const sessionRef = useRef(session);
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
+  // sessionRef is defined above (near the state declarations) to avoid ordering issues
   const [socketConnected, setSocketConnected] = useState(false);
   const liveFindingsRef = useRef<Finding[]>([]);
 
