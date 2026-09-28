@@ -208,16 +208,29 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  // -------- Smooth scroll to section --------
+  // -------- Smooth scroll to section + view transition --------
+  // Clicking a sidebar nav item triggers a brief "wipe" transition
+  // overlay + smooth-scrolls to the target section. The destination
+  // section's `whileInView` animation then fires as it enters viewport.
+  const [viewTransitioning, setViewTransitioning] = useState(false);
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollToSection = useCallback((id: string) => {
-    if (id === "#") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    const el = document.querySelector(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    // Trigger the wipe overlay
+    setViewTransitioning(true);
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+    // Smooth-scroll to the target
+    setTimeout(() => {
+      if (id === "#") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const el = document.querySelector(id);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+    }, 30); // small delay so the wipe overlay starts rendering first
+    // Hide the wipe overlay after the transition completes
+    transitionTimerRef.current = setTimeout(() => setViewTransitioning(false), 750);
   }, []);
 
   // -------- Track active section for sidebar highlight --------
@@ -355,6 +368,37 @@ export default function Home() {
         </ErrorBoundary>
       </div>
 
+      {/* View-transition wipe overlay (fires when a sidebar nav item is clicked) */}
+      <AnimatePresence>
+        {viewTransitioning && (
+          <motion.div
+            key="view-wipe"
+            initial={{ x: "-100%" }}
+            animate={{ x: "100%" }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
+          >
+            {/* Diagonal gradient wipe — cyan → violet → transparent */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(110deg, transparent 0%, rgba(34,211,238,0.18) 30%, rgba(167,139,250,0.22) 50%, rgba(34,211,238,0.18) 70%, transparent 100%)",
+              }}
+            />
+            {/* Thin bright leading edge */}
+            <div
+              className="absolute top-0 bottom-0 w-px bg-white/80 shadow-[0_0_20px_4px_rgba(34,211,238,0.6)]"
+              style={{ left: "50%" }}
+            />
+            {/* Top + bottom edges */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-300/80 to-transparent" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ============ SIDEBAR (desktop + tablet) ============ */}
       <aside className="hidden md:flex w-[72px] lg:w-[280px] shrink-0 sticky top-0 h-screen flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl">
         <SidebarContent
@@ -434,7 +478,14 @@ export default function Home() {
 
         <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-10 md:py-16 pt-20 md:pt-16 w-full">
           {/* ===== HERO ===== */}
-          <section id="target" className="mb-14 md:mb-20 scroll-mt-24">
+          <motion.section
+            id="target"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.1 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-14 md:mb-20 scroll-mt-24"
+          >
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -511,7 +562,7 @@ export default function Home() {
                 </button>
               ))}
             </div>
-          </section>
+          </motion.section>
 
           {/* ===== SCANNING (animated 6-stage) ===== */}
           <AnimatePresence>
@@ -567,7 +618,14 @@ export default function Home() {
           </section>
 
           {/* ===== DETECTION MATRIX — interactive cards ===== */}
-          <section id="detection" className="mb-14 md:mb-20 scroll-mt-24">
+          <motion.section
+            id="detection"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-14 md:mb-20 scroll-mt-24"
+          >
             <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Detection Matrix</h2>
@@ -586,18 +644,30 @@ export default function Home() {
                 <DetectionCard key={card.id} card={card} index={i} />
               ))}
             </div>
-          </section>
+          </motion.section>
 
           {/* ===== SCAN RESULTS ===== */}
-          <div id="report" className="scroll-mt-24 mb-14 md:mb-20">
+          <motion.div
+            id="report"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="scroll-mt-24 mb-14 md:mb-20"
+          >
           {result && !scanning && (
             <ResultDashboard result={result} onExport={exportJson} onClear={clearResults} />
           )}
-          </div>
+          </motion.div>
 
           {/* ===== SAVED SCANS (logged in) ===== */}
           {session?.user && (
-            <section className="mt-14">
+            <motion.section
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-14"
+            >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
                   <Database className="w-4 h-4 text-cyan-300" />
@@ -632,7 +702,7 @@ export default function Home() {
                   })}
                 </div>
               )}
-            </section>
+            </motion.section>
           )}
 
           {/* ===== PROFILE (logged-in only — only the user can see their own PII) ===== */}
@@ -645,7 +715,14 @@ export default function Home() {
 
           {/* ===== SESSION HISTORY ===== */}
           {sessionHistory.length > 0 && !scanning && (
-            <section id="history" className="mt-14 scroll-mt-24">
+            <motion.section
+              id="history"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-14 scroll-mt-24"
+            >
               <h3 className="text-base font-semibold tracking-tight flex items-center gap-2 mb-4">
                 <Activity className="w-4 h-4 text-violet-300" />
                 Session History <span className="text-white/40 text-sm">({sessionHistory.length})</span>
@@ -662,7 +739,7 @@ export default function Home() {
                   );
                 })}
               </div>
-            </section>
+            </motion.section>
           )}
         </div>
 
