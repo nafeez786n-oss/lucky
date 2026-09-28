@@ -23,9 +23,15 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
-/** True when Supabase env vars are configured (auto-switches API routes). */
+/**
+ * True when the SERVER-side Supabase client can be used (URL + service_role key).
+ * The anon key is OPTIONAL for server-side flows because all Next.js API
+ * routes use `getServerSupabase()` (which uses the service_role key that
+ * bypasses RLS). The anon key is only needed if you call `getBrowserSupabase()`
+ * directly from the browser (the current website doesn't).
+ */
 export const isSupabaseConfigured = Boolean(
-  SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
 );
 
 /**
