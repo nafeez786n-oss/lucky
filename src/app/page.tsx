@@ -45,6 +45,10 @@ import {
   EyeOff,
   Server,
   FileCheck2,
+  Wrench,
+  ListChecks,
+  RefreshCw,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,7 +62,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import type { ScanResult, Finding } from "@/lib/leak-scanner";
+import type { ScanResult, Finding, LeakCategory } from "@/lib/leak-scanner";
 import { SEVERITY_META, CATEGORY_META, severityCount } from "@/lib/leak-ui";
 import { AuthButton } from "@/components/auth/auth-button";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -658,6 +662,24 @@ export default function Home() {
             <ResultDashboard result={result} onExport={exportJson} onClear={clearResults} />
           )}
           </motion.div>
+
+          {/* ===== DEBUGGING SOLUTIONS (only when findings > 0) ===== */}
+          {result && !scanning && result.findings.length > 0 && (
+            <DebuggingSolutions
+              result={result}
+              onRescan={() => {
+                // Re-use the URL from the last scan to trigger a new scan
+                if (result.targetUrl) {
+                  setUrl(result.targetUrl);
+                  // Use a small delay so the state updates before runScan reads it
+                  setTimeout(() => {
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                    runScan(fakeEvent);
+                  }, 30);
+                }
+              }}
+            />
+          )}
 
           {/* ===== SAVED SCANS (logged in) ===== */}
           {session?.user && (
@@ -1315,6 +1337,226 @@ function ProfileStatCard({
 }
 
 // ============================================================================
+// Debugging solutions section — appears after scan results when findings > 0
+// ============================================================================
+function DebuggingSolutions({
+  result,
+  onRescan,
+}: {
+  result: ScanResult;
+  onRescan: () => void;
+}) {
+  const findings = result.findings;
+  const total = findings.length;
+  if (total === 0) return null;
+
+  // Group findings by category to know which solutions are relevant
+  const findingsByCategory: Record<string, number> = {};
+  for (const f of findings) {
+    findingsByCategory[f.category] = (findingsByCategory[f.category] ?? 0) + 1;
+  }
+
+  // Filter + sort solutions: only show categories that have findings, sorted by priority
+  const relevantSolutions = DEBUGGING_SOLUTIONS
+    .filter((s) => findingsByCategory[s.category])
+    .sort((a, b) => SOLUTION_PRIORITY_RANK[a.priority] - SOLUTION_PRIORITY_RANK[b.priority]);
+
+  const priorityColor: Record<DebugSolution["priority"], string> = {
+    critical: "#ef4444",
+    high: "#f97316",
+    medium: "#f59e0b",
+    low: "#0ea5e9",
+  };
+
+  return (
+    <motion.section
+      id="solutions"
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      className="mt-14 scroll-mt-24"
+    >
+      {/* Header */}
+      <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Wrench className="w-4 h-4 text-cyan-300" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">
+              POST-SCAN REMEDIATION
+            </span>
+          </div>
+          <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Debugging Solutions
+          </h3>
+          <p className="text-sm text-white/50 mt-1 max-w-xl">
+            Step-by-step action plan for the {total} {total === 1 ? "finding" : "findings"} exposed in this scan. Start with critical issues.
+          </p>
+        </div>
+        <Button
+          onClick={onRescan}
+          className="bg-white/5 hover:bg-cyan-400/10 text-white hover:text-cyan-300 border border-white/10 hover:border-cyan-400/40 font-medium"
+        >
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+          Re-scan target
+        </Button>
+      </div>
+
+      {/* Priority action banner */}
+      {relevantSolutions.some(s => s.priority === "critical") && (
+        <Alert className="mb-4 border-red-500/40 bg-red-500/5">
+          <AlertCircle className="w-4 h-4 text-red-400" />
+          <AlertTitle className="text-red-400 font-semibold text-sm">
+            Critical action required
+          </AlertTitle>
+          <AlertDescription className="text-sm text-white/60">
+            This scan exposed critical-severity leaks. Rotate the affected keys/secrets at their provider BEFORE deploying any other fixes — assume they are already in attacker hands.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Per-category solution cards */}
+      <div className="space-y-4">
+        {relevantSolutions.map((sol, i) => {
+          const count = findingsByCategory[sol.category];
+          const color = priorityColor[sol.priority];
+          const meta = CATEGORY_META[sol.category];
+          return (
+            <motion.div
+              key={sol.category}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+            >
+              <div className="glass-panel rounded-2xl overflow-hidden">
+                {/* Card header */}
+                <div
+                  className="px-5 py-4 border-b border-white/5 flex items-start gap-3"
+                  style={{ borderLeft: `3px solid ${color}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
+                        style={{ background: `${color}20`, color, border: `1px solid ${color}50` }}
+                      >
+                        {sol.priority}
+                      </span>
+                      <span className="text-[10px] font-mono text-white/40">
+                        {meta?.label ?? sol.category} · {count} {count === 1 ? "finding" : "findings"}
+                      </span>
+                    </div>
+                    <h4 className="text-base font-semibold tracking-tight text-white/90">
+                      {sol.title}
+                    </h4>
+                    <p className="text-xs text-white/50 mt-1 leading-relaxed">{sol.summary}</p>
+                  </div>
+                </div>
+
+                {/* Steps list */}
+                <div className="p-5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-3 flex items-center gap-1.5">
+                    <ListChecks className="w-3 h-3" />
+                    Action Plan
+                  </div>
+                  <ol className="space-y-2.5">
+                    {sol.steps.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-3 text-sm">
+                        <span
+                          className="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center text-[10px] font-mono font-medium"
+                          style={{
+                            background: `${color}15`,
+                            borderColor: `${color}40`,
+                            color,
+                          }}
+                        >
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+                        <span className="text-white/70 leading-relaxed pt-0.5">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+
+                  {/* Tools links */}
+                  {sol.tools && sol.tools.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-white/5">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/40 mb-2">
+                        Tools & Resources
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {sol.tools.map((t) => (
+                          <a
+                            key={t.url}
+                            href={t.url}
+                            target="_blank"
+                            rel="noopener noreferrer nofollow"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-white/70 hover:text-cyan-300 hover:border-cyan-400/30 hover:bg-cyan-400/5 transition"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            {t.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Verification checklist */}
+      <div className="mt-6 glass-panel rounded-2xl p-5 border-cyan-400/20">
+        <div className="flex items-center gap-2 mb-3">
+          <CheckCircle2 className="w-4 h-4 text-cyan-300" />
+          <h4 className="text-sm font-semibold tracking-tight text-cyan-300">
+            Verification checklist
+          </h4>
+        </div>
+        <p className="text-xs text-white/50 mb-4 leading-relaxed">
+          After applying the fixes above, run through this checklist before re-scanning to confirm everything is in place.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {[
+            "All leaked keys revoked at their provider's console",
+            "New keys stored only in server-side env vars",
+            "Web server returns 404 for /.env, /.git/, /package.json",
+            "Source maps (.js.map) return 404 on production",
+            "console.log stripped from production bundle",
+            "process.env.* no longer appears in shipped JS",
+            "AI-generator meta tags + comments stripped",
+            "Hardcoded PII moved to server-rendered partials",
+          ].map((check) => (
+            <div
+              key={check}
+              className="flex items-start gap-2 text-xs text-white/60 p-2 rounded-lg bg-white/[0.02] border border-white/5"
+            >
+              <span className="shrink-0 w-4 h-4 rounded border border-white/20 mt-0.5" />
+              <span className="leading-snug">{check}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+          <p className="text-[10px] font-mono text-white/40">
+            Re-scan after applying fixes to verify — should show 0 findings.
+          </p>
+          <Button
+            onClick={onRescan}
+            size="sm"
+            className="bg-white hover:bg-white/90 text-black font-semibold"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Re-scan now
+          </Button>
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+// ============================================================================
 // Result dashboard — premium glass + expandable findings
 // ============================================================================
 function ResultDashboard({
@@ -1758,4 +2000,172 @@ const TRUST_SLOGANS: { title: string; desc: string; icon: LucideIcon }[] = [
     icon: UserIcon,
   },
 ];
+
+// ============================================================================
+// Debugging solutions — step-by-step remediation per leak category.
+// Rendered after the scan results when findings > 0.
+// ============================================================================
+type DebugSolution = {
+  category: LeakCategory;
+  priority: "critical" | "high" | "medium" | "low";
+  title: string;
+  summary: string;
+  steps: string[];
+  tools?: { name: string; url: string }[];
+};
+
+const DEBUGGING_SOLUTIONS: DebugSolution[] = [
+  {
+    category: "api_key",
+    priority: "critical",
+    title: "Rotate exposed API keys immediately",
+    summary:
+      "Hardcoded cloud/SaaS API keys in client bundles are the most catastrophic leak. Assume the key is already compromised — rotate, restrict, and move server-side.",
+    steps: [
+      "Revoke the exposed key at the provider's console (AWS IAM, OpenAI, Stripe, etc.). Do this BEFORE anything else.",
+      "Audit the provider's usage logs (AWS CloudTrail, OpenAI usage, GitHub audit log) for any unauthorized calls since the key was committed.",
+      "Issue a new key with the minimum required scope (least-privilege). Never use root/admin keys in apps.",
+      "Store the new key ONLY in a server-side environment variable — never in client-side code, .env files committed to git, or NEXT_PUBLIC_* vars.",
+      "Route all API calls through your own /api endpoint so the key never leaves your server.",
+      "Add the key to a secrets-rotation schedule (rotate every 30-90 days).",
+    ],
+    tools: [
+      { name: "AWS IAM Console", url: "https://console.aws.amazon.com/iam" },
+      { name: "OpenAI API Keys", url: "https://platform.openai.com/api-keys" },
+      { name: "GitHub Token Settings", url: "https://github.com/settings/tokens" },
+      { name: "Stripe API Keys", url: "https://dashboard.stripe.com/apikeys" },
+    ],
+  },
+  {
+    category: "secret",
+    priority: "critical",
+    title: "Invalidate hardcoded secrets & rotate credentials",
+    summary:
+      "JWTs, Bearer tokens, PEM private keys, and DB connection strings in client code allow full impersonation until rotated. Treat each as actively compromised.",
+    steps: [
+      "Invalidate ALL active JWTs by rotating your JWT signing secret — every existing token becomes invalid immediately.",
+      "Revoke any hardcoded Bearer tokens at their issuer (OAuth provider, internal API).",
+      "Rotate any exposed PEM private keys at their CA/issuer. Re-issue new keys and update all consumers.",
+      "Rotate the database password embedded in any leaked connection string, then update the server's DATABASE_URL env var.",
+      "Move all secrets to a secrets manager (AWS Secrets Manager, Doppler, Vault) — never inline them in code.",
+      "Force-rotate any server-side cookies that may have been signed with the leaked secrets.",
+    ],
+    tools: [
+      { name: "Doppler Secrets", url: "https://dash.doppler.com" },
+      { name: "AWS Secrets Manager", url: "https://console.aws.amazon.com/secretsmanager" },
+      { name: "HashiCorp Vault", url: "https://vaultproject.io" },
+    ],
+  },
+  {
+    category: "exposed_file",
+    priority: "critical",
+    title: "Block dotfiles & sensitive paths at the web server",
+    summary:
+      "/.env, /.git/, /package.json, /actuator/health returning 200 means anyone can download your secrets or source. Block at the web server level immediately.",
+    steps: [
+      "Block /.env* and /.git/* at your web server (Nginx, Caddy, Next.js middleware). Return 404, not 403 — 404 reveals less.",
+      "Verify /.git/HEAD no longer returns 200 after the rule. If it does, your rewrite is wrong.",
+      "If /package.json was exposed, audit your dependencies for known CVEs in those exact versions.",
+      "If /.env was reachable, assume EVERY secret in it is compromised. Rotate every secret (DB password, API keys, JWT secret) following the api_key/secret playbooks above.",
+      "If /actuator/health (Spring Boot) was exposed, disable actuator or restrict to localhost only.",
+      "Add a deploy-time check (CI step) that curls these paths and fails the build if any returns 200.",
+    ],
+    tools: [
+      { name: "Nginx dotfile blocking", url: "https://nginx.org/en/docs/http/ngx_http_core_module.html" },
+      { name: "Caddyfile reference", url: "https://caddyserver.com/docs/caddyfile" },
+    ],
+  },
+  {
+    category: "source_map",
+    priority: "high",
+    title: "Disable source maps in production builds",
+    summary:
+      "Exposed .js.map files let anyone reconstruct your pre-minification source code, including variable names, comments, and file paths. Disable them in prod.",
+    steps: [
+      "In Vite: set `build.sourcemap: false` (or `hidden` if you upload maps to an error-tracker only).",
+      "In Next.js: set `productionBrowserSourceMaps: false` in next.config.js (default is false, but verify).",
+      "In webpack: ensure `devtool: false` (or `source-map` only in dev).",
+      "Remove any `//# sourceMappingURL=` annotations from your build output (most bundlers strip these automatically when sourcemaps are disabled).",
+      "If you need source maps for production debugging, upload them to Sentry/DataDog and DO NOT serve them publicly — use `hidden` source maps.",
+      "Verify by curling {script}.map on your prod URL — should return 404.",
+    ],
+    tools: [
+      { name: "Vite build options", url: "https://vitejs.dev/config/build-options.html" },
+      { name: "Next.js source maps", url: "https://nextjs.org/docs/app/api-reference/config/next-config-js/productionBrowserSourceMaps" },
+    ],
+  },
+  {
+    category: "debug_endpoint",
+    priority: "medium",
+    title: "Strip dev artifacts & ship a production build",
+    summary:
+      "console.log spam, Next.js /__nextjs_original-stack-frame, and Vite /@vite/ routes suggest your production site is running a dev build. Build for production.",
+    steps: [
+      "Run `next build && next start` (Next.js) or `vite build && vite preview` (Vite) — NEVER ship the dev server to production.",
+      "Strip console.log in production via babel-plugin-transform-remove-console or Terser drop_console.",
+      "Verify /__nextjs_original-stack-frame returns 404 (not 200) on your prod URL.",
+      "Verify /@vite/ and /@react-refresh return 404 on your prod URL.",
+      "Add a CI step that fails if the production bundle contains more than N console statements (e.g. 5).",
+      "Remove any debug panel/route (e.g. /debug, /__health) that exposes internal state in prod.",
+    ],
+    tools: [
+      { name: "babel-plugin-transform-remove-console", url: "https://www.npmjs.com/package/babel-plugin-transform-remove-console" },
+      { name: "Terser drop_console", url: "https://terser.org/docs/options/" },
+    ],
+  },
+  {
+    category: "ai_fingerprint",
+    priority: "low",
+    title: "Strip AI-generator fingerprints from the build",
+    summary:
+      "Meta tags + HTML comments referencing v0.dev, lovable.dev, bolt.new, Cursor, Claude, or ChatGPT tell attackers exactly which AI tool generated your code — narrows their exploit search.",
+    steps: [
+      "Remove the <meta name=\"generator\"> tag from your HTML <head> if it references any AI tool.",
+      "Strip HTML comments that reference AI tools (e.g. `<!-- built by v0 -->`, `<!-- cursor: generated -->`).",
+      "Search your bundle for strings like `v0.dev`, `lovable`, `bolt.new`, `cursor`, `claude`, `chatgpt` — strip or replace with neutral names.",
+      "Remove any AI-tool-specific helper files (lovable's supabase integration, v0's registry files, etc.) from the production build.",
+      "Audit your README and CHANGELOG for AI-tool references before deploying.",
+    ],
+  },
+  {
+    category: "pii",
+    priority: "low",
+    title: "Move hardcoded emails & phones server-side",
+    summary:
+      "Hardcoded developer emails and phone numbers in client code enable targeted phishing and credential-stuffing. Render them through server-side partials instead.",
+    steps: [
+      "Replace inline `dev@example.com` strings with server-rendered contact endpoints (e.g. /api/contact).",
+      "If you must show contact info, obfuscate via CSS (split the address with pseudo-elements) — at minimum, breaks naive scrapers.",
+      "Audit git history for previously-committed PII using `git log -p | grep -E '[a-z]+@[a-z]+\\.[a-z]+'`.",
+      "Remove any hardcoded support phone numbers from JS constants; route through a server-rendered partial.",
+      "Add a CI regex check that fails the build if a real email pattern (not @example.com) appears in src/.",
+    ],
+  },
+  {
+    category: "misconfig",
+    priority: "high",
+    title: "Fix process.env polyfill leaking server secrets to client",
+    summary:
+      "References to process.env.* in shipped JS mean a bundler polyfill inlined server-side env vars into the client bundle. This is a catastrophic build misconfiguration.",
+    steps: [
+      "Identify which bundler is misconfigured: search your webpack/vite/next config for `process` or `DefinePlugin`.",
+      "In Next.js: NEVER use `process.env.X` in client components — only `NEXT_PUBLIC_*` is exposed. Move the env var to a server route.",
+      "In Vite: only `import.meta.env.VITE_*` is exposed to the client. Replace `process.env.X` with `import.meta.env.VITE_X` for genuinely-public values.",
+      "Audit your bundler config for `define: { 'process.env': '{}' }` or similar — remove it.",
+      "Rotate EVERY secret that appeared in process.env references in the client bundle. Assume they leaked.",
+      "Add a CI post-build check that greps the production bundle for `process.env` and fails if found.",
+    ],
+    tools: [
+      { name: "Vite env variables", url: "https://vitejs.dev/guide/env-and-mode.html" },
+      { name: "Next.js env vars", url: "https://nextjs.org/docs/app/build-your-appraries/environment-variables" },
+    ],
+  },
+];
+
+const SOLUTION_PRIORITY_RANK: Record<DebugSolution["priority"], number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
 
