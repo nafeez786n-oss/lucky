@@ -24,6 +24,15 @@ node_modules
 .DS_Store
 *.pem
 
+# database (SQLite local dev — never commit)
+/db/
+
+# downloaded files (screenshots, reports)
+/download/
+
+# zscripts (internal sandbox scripts)
+/.zscripts/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
