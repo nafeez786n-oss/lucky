@@ -372,34 +372,74 @@ export default function Home() {
         </ErrorBoundary>
       </div>
 
-      {/* View-transition wipe overlay (fires when a sidebar nav item is clicked) */}
+      {/* View-transition wipe overlay + particle burst (fires when a sidebar nav item is clicked) */}
       <AnimatePresence>
         {viewTransitioning && (
-          <motion.div
-            key="view-wipe"
-            initial={{ x: "-100%" }}
-            animate={{ x: "100%" }}
-            exit={{ x: "100%", opacity: 0 }}
-            transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
-          >
-            {/* Diagonal gradient wipe — cyan → violet → transparent */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(110deg, transparent 0%, rgba(34,211,238,0.18) 30%, rgba(167,139,250,0.22) 50%, rgba(34,211,238,0.18) 70%, transparent 100%)",
-              }}
-            />
-            {/* Thin bright leading edge */}
-            <div
-              className="absolute top-0 bottom-0 w-px bg-white/80 shadow-[0_0_20px_4px_rgba(34,211,238,0.6)]"
-              style={{ left: "50%" }}
-            />
-            {/* Top + bottom edges */}
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-300/80 to-transparent" />
-          </motion.div>
+          <>
+            {/* Diagonal gradient wipe — cyan → violet → transparent, sweeping left → right */}
+            <motion.div
+              key="view-wipe"
+              initial={{ x: "-100%" }}
+              animate={{ x: "100%" }}
+              exit={{ x: "100%", opacity: 0 }}
+              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(110deg, transparent 0%, rgba(34,211,238,0.18) 30%, rgba(167,139,250,0.22) 50%, rgba(34,211,238,0.18) 70%, transparent 100%)",
+                }}
+              />
+              {/* Thin bright leading edge */}
+              <div
+                className="absolute top-0 bottom-0 w-px bg-white/80 shadow-[0_0_20px_4px_rgba(34,211,238,0.6)]"
+                style={{ left: "50%" }}
+              />
+              {/* Top + bottom edges */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-300/80 to-transparent" />
+            </motion.div>
+
+            {/* Particle burst — 16 particles radiating from screen center */}
+            <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center overflow-hidden">
+              {Array.from({ length: 16 }).map((_, i) => {
+                const angle = (i / 16) * Math.PI * 2;
+                const distance = 180 + (i % 4) * 80; // varied distances for depth
+                const dx = Math.cos(angle) * distance;
+                const dy = Math.sin(angle) * distance;
+                const color = i % 2 === 0 ? "#22d3ee" : "#a78bfa";
+                const size = 4 + (i % 3) * 2;
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                    animate={{ x: dx, y: dy, opacity: 0, scale: 0.3 }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+                    className="rounded-full"
+                    style={{
+                      width: size,
+                      height: size,
+                      background: color,
+                      boxShadow: `0 0 ${size * 2}px ${color}`,
+                    }}
+                  />
+                );
+              })}
+              {/* Center flash */}
+              <motion.div
+                initial={{ scale: 0, opacity: 0.8 }}
+                animate={{ scale: 4, opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="absolute w-8 h-8 rounded-full"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(255,255,255,0.9), rgba(34,211,238,0.4) 50%, transparent 70%)",
+                }}
+              />
+            </div>
+          </>
         )}
       </AnimatePresence>
 
@@ -456,7 +496,19 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ============ MAIN CONTENT ============ */}
-      <main className="flex-1 min-w-0 relative">
+      {/* During a view transition, the main content zooms out (scale 0.97),
+          blurs (8px), and fades (0.55 opacity). When the transition ends,
+          it zooms back in + clears + re-opaques. This pairs with the wipe
+          overlay for a cinematic "page change" feel. */}
+      <motion.main
+        className="flex-1 min-w-0 relative origin-top"
+        animate={{
+          opacity: viewTransitioning ? 0.55 : 1,
+          scale: viewTransitioning ? 0.97 : 1,
+          filter: viewTransitioning ? "blur(8px)" : "blur(0px)",
+        }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      >
         {/* Top status strip (desktop only) */}
         <div className="hidden md:block border-b border-white/5 bg-black/30 backdrop-blur-md">
           <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
@@ -484,8 +536,8 @@ export default function Home() {
           {/* ===== HERO ===== */}
           <motion.section
             id="target"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.1 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="mb-14 md:mb-20 scroll-mt-24"
@@ -624,8 +676,8 @@ export default function Home() {
           {/* ===== DETECTION MATRIX — interactive cards ===== */}
           <motion.section
             id="detection"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.15 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="mb-14 md:mb-20 scroll-mt-24"
@@ -653,8 +705,8 @@ export default function Home() {
           {/* ===== SCAN RESULTS ===== */}
           <motion.div
             id="report"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="scroll-mt-24 mb-14 md:mb-20"
           >
@@ -684,8 +736,8 @@ export default function Home() {
           {/* ===== SAVED SCANS (logged in) ===== */}
           {session?.user && (
             <motion.section
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="mt-14"
@@ -739,8 +791,8 @@ export default function Home() {
           {sessionHistory.length > 0 && !scanning && (
             <motion.section
               id="history"
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="mt-14 scroll-mt-24"
@@ -777,7 +829,7 @@ export default function Home() {
             </span>
           </div>
         </footer>
-      </main>
+      </motion.main>
     </div>
   );
 }
@@ -1772,11 +1824,13 @@ function PremiumStat({
     sky: { hex: "#0ea5e9", tailwind: "text-sky-400" },
   };
   const a = accentMap[accent];
+  // Count-up animation: animate the displayed number from 0 to value over 0.9s
+  const displayValue = useCountUp(value, 900);
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
+      initial={{ opacity: 0, scale: 0.92, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="glass-panel glass-panel-hover rounded-xl p-4 relative overflow-hidden"
     >
       <div
@@ -1786,19 +1840,43 @@ function PremiumStat({
       <div className="relative flex items-start justify-between">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">{label}</p>
-          <motion.p
-            key={value}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}
-          >
-            {value}
-          </motion.p>
+          <p className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}>
+            {displayValue}
+          </p>
         </div>
         <Icon className="w-4 h-4 opacity-50" style={{ color: a.hex }} />
       </div>
     </motion.div>
   );
+}
+
+// Count-up hook: animates from 0 to target over `duration` ms.
+// Uses requestAnimationFrame with an ease-out cubic curve for smooth deceleration.
+// All setState calls happen INSIDE rAF callbacks (async) to avoid the
+// react-hooks/set-state-in-effect lint rule.
+function useCountUp(target: number, duration: number): number {
+  const [current, setCurrent] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const t = Math.min(elapsed / duration, 1);
+      // Ease-out cubic: 1 - (1-t)^3
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = Math.round(target * eased);
+      setCurrent(value);
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    // Start the animation on the next frame. The first tick (t≈0) sets
+    // value to ~0, then animates up to target. If target=0, the animation
+    // is a no-op (0 → 0).
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return current;
 }
 
 function MetaCard({ label, value }: { label: string; value: string }) {
