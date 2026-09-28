@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { getServerSupabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -54,9 +55,26 @@ export async function POST(req: Request) {
       );
     }
     const passwordHash = await bcrypt.hash(password, 10);
+    // Save to local SQLite (for NextAuth credentials provider)
     await db.user.create({
       data: { email, name, passwordHash },
     });
+
+    // Also sync to Supabase if configured (so scans can be persisted there)
+    if (isSupabaseConfigured) {
+      try {
+        const supabase = getServerSupabase();
+        await supabase.from("users").insert({
+          email,
+          name,
+          password_hash: passwordHash,
+        });
+      } catch (supabaseErr) {
+        // Supabase sync failure should NOT block registration
+        console.warn("[register] Supabase sync failed:", supabaseErr);
+      }
+    }
+
     return NextResponse.json({ ok: true, email });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
