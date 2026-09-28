@@ -289,6 +289,12 @@ export default function Home() {
   // access — it just runs the scan and emits events. The frontend
   // POSTs the final result to /api/scans/save for persistence.
   const socketRef = useRef<Socket | null>(null);
+  // Track the latest session in a ref so the socket event handlers (which are
+  // set up once on mount) can always access the current session without stale closures.
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
   const [socketConnected, setSocketConnected] = useState(false);
   const liveFindingsRef = useRef<Finding[]>([]);
 
@@ -357,8 +363,8 @@ export default function Home() {
       }
       setSessionHistory((h) => [data, ...h].slice(0, 8));
 
-      // Persist the result if the user is authenticated
-      if (session?.user) {
+      // Persist the result if the user is authenticated (use ref to avoid stale closure)
+      if (sessionRef.current?.user) {
         try {
           await fetch("/api/scans/save", {
             method: "POST",

@@ -45,11 +45,15 @@ let _serverClient: SupabaseClient | null = null;
 export function getServerSupabase(): SupabaseClient {
   if (!isSupabaseConfigured) {
     throw new Error(
-      "Supabase env vars not set. Define NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in .env"
+      "Supabase env vars not set. Define NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in .env"
     );
   }
   if (!_serverClient) {
     _serverClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      // Use 'api' schema — PostgREST on this project exposes only api + graphql_public
+      // (not 'public'). Tables are in public.users/scan_records but accessed via
+      // api.users/api.scan_records views that we created.
+      db: { schema: "api" },
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
