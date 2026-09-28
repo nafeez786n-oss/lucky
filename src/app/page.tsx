@@ -552,6 +552,41 @@ export default function Home() {
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                 BOUNDED · NO LOOPS · NO POLLING
               </div>
+
+              {/* Quotation — Playfair Display italic + warm gold→coral→magenta gradient.
+                  Sits ABOVE the main headline. Uses a different font family (serif)
+                  and a unique color palette (warm) to contrast with the cool
+                  cyan/violet of the rest of the UI. */}
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+                className="mb-6 flex items-center justify-center gap-4"
+              >
+                {/* Left decorative line */}
+                <span
+                  className="hidden sm:block h-px w-16"
+                  style={{
+                    background:
+                      "linear-gradient(to right, transparent, #fcd34d 50%, #fb7185)",
+                  }}
+                />
+                <p
+                  className="font-playfair text-gradient-quote text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-medium tracking-wide leading-snug"
+                  style={{ textShadow: "0 0 30px rgba(251, 113, 133, 0.25)" }}
+                >
+                  “Beyond The Limits”
+                </p>
+                {/* Right decorative line */}
+                <span
+                  className="hidden sm:block h-px w-16"
+                  style={{
+                    background:
+                      "linear-gradient(to left, transparent, #c084fc 50%, #f472b6)",
+                  }}
+                />
+              </motion.div>
+
               <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl font-bold tracking-tight leading-[1.02] mb-6">
                 <span className="text-white">Find every exposed</span>
                 <br />

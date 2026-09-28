@@ -245,6 +245,20 @@
     color: transparent;
   }
 
+  /* Quotation font — Playfair Display italic (very different from Space Grotesk + JetBrains Mono) */
+  .font-playfair {
+    font-family: var(--font-playfair), Georgia, "Times New Roman", serif;
+    font-style: italic;
+  }
+
+  /* Warm gold→coral→magenta gradient — distinct from the cool cyan/violet palette */
+  .text-gradient-quote {
+    background: linear-gradient(120deg, #fcd34d 0%, #fb7185 45%, #f472b6 75%, #c084fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* Glow effects */
   .glow-cyan {
     box-shadow: 0 0 30px -8px rgba(34, 211, 238, 0.5);
