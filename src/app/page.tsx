@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { io, type Socket } from "socket.io-client";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -281,6 +282,107 @@ export default function Home() {
     refreshSaved();
   }, [refreshSaved]);
 
+  // -------- WebSocket connection to the scanner service (port 3030) --------
+  // Real-time scan progress: stage events fire as the scanner actually
+  // completes each step (replaces fake stage timing). Findings appear
+  // one-by-one as they're discovered. The scanner service has NO DB
+  // access — it just runs the scan and emits events. The frontend
+  // POSTs the final result to /api/scans/save for persistence.
+  const socketRef = useRef<Socket | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const liveFindingsRef = useRef<Finding[]>([]);
+
+  // Map real backend stage names → existing 6-stage UI index
+  const stageToIndex: Record<string, number> = {
+    acquire: 0,        // TARGET ACQUIRED
+    fetch_html: 1,     // FETCHING
+    analyze_html: 2,   // ANALYZING
+    fetch_scripts: 3,  // PATTERN MATCH
+    pattern_match: 3,  // PATTERN MATCH (still)
+    ai_fingerprint: 4, // AI FINGERPRINT
+    probe_paths: 4,    // AI FINGERPRINT (still)
+    complete: 5,       // COMPLETE
+  };
+
+  useEffect(() => {
+    // Connect to the scanner-service on port 3030 via the Caddy gateway.
+    // Path is "/" (required) and XTransformPort=3030 tells Caddy to forward.
+    // Use default transport negotiation (polling → WebSocket upgrade) for
+    // maximum proxy/reverse-proxy compatibility.
+    const socket = io("/?XTransformPort=3030", {
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setSocketConnected(true);
+      console.log("[scanner] connected to scanner-service");
+    });
+    socket.on("disconnect", () => {
+      setSocketConnected(false);
+      console.log("[scanner] disconnected from scanner-service");
+    });
+    socket.on("connect_error", (err: any) => {
+      setSocketConnected(false);
+      console.warn("[scanner] connect error:", err.message);
+    });
+
+    // Real-time stage updates from the scanner service
+    socket.on("scan:stage", (event: { stage: string; detail: string; findingsCount: number }) => {
+      const idx = stageToIndex[event.stage] ?? 0;
+      setStage(idx);
+    });
+
+    // Live findings (as they're discovered — incrementally builds the result)
+    socket.on("scan:finding", (event: { finding: Finding }) => {
+      liveFindingsRef.current.push(event.finding);
+    });
+
+    // Final result from the scanner service
+    socket.on("scan:complete", async (event: { result: ScanResult }) => {
+      const data = event.result;
+      setStage(SCAN_STAGES.length - 1); // COMPLETE
+      setResult(data);
+      setScanning(false);
+      liveFindingsRef.current = [];
+
+      if (!data.ok && data.errors.length > 0) {
+        toast.warning(data.errors[0]);
+      } else {
+        const n = data.findings.length;
+        if (n === 0) toast.success("Scan complete — site is clean");
+        else toast.success(`Scan complete — ${n} finding${n === 1 ? "" : "s"} exposed`);
+      }
+      setSessionHistory((h) => [data, ...h].slice(0, 8));
+
+      // Persist the result if the user is authenticated
+      if (session?.user) {
+        try {
+          await fetch("/api/scans/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          refreshSaved();
+        } catch (err) {
+          console.warn("[scanner] failed to persist scan:", err);
+        }
+      }
+    });
+
+    socket.on("scan:error", (event: { error: string }) => {
+      setScanning(false);
+      toast.error(`Scan failed: ${event.error}`);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
   async function runScan(e: React.FormEvent) {
     e.preventDefault();
     if (scanning) return;
@@ -292,10 +394,17 @@ export default function Home() {
     setScanning(true);
     setResult(null);
     setStage(0);
+    liveFindingsRef.current = [];
 
-    // Bounded 6-stage progression (finite timeouts — not a polling loop)
+    // If the WebSocket scanner-service is connected, use it (real-time progress).
+    // Otherwise, fall back to the legacy fetch POST to /api/scan.
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("scan:start", { url: target });
+      return;
+    }
+
+    // Fallback: legacy fetch-based scan (no real-time progress)
     const stageTimers: ReturnType<typeof setTimeout>[] = [];
-    // Stages 1..5 fire at intervals; stage 6 (complete) fires when response arrives
     const intervals = [0, 2200, 6500, 11000, 15000, 19000];
     for (let i = 1; i < SCAN_STAGES.length; i++) {
       stageTimers.push(setTimeout(() => setStage(i), intervals[i]));

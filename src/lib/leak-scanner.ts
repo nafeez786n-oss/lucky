@@ -11,6 +11,29 @@
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
+/**
+ * Real-time scan progress event — emitted by `scanTarget` when an `onProgress`
+ * callback is provided. Used by the WebSocket scanner service to push live
+ * updates to the frontend as the scan runs (replaces fake stage timing).
+ */
+export type ScanProgressEvent =
+  | {
+      type: "stage";
+      stage:
+        | "acquire"
+        | "fetch_html"
+        | "analyze_html"
+        | "fetch_scripts"
+        | "pattern_match"
+        | "ai_fingerprint"
+        | "probe_paths"
+        | "complete";
+      detail: string;
+      findingsCount: number;
+    }
+  | { type: "finding"; finding: Finding }
+  | { type: "complete"; result: ScanResult };
+
 export type LeakCategory =
   | "api_key"
   | "secret"
@@ -543,7 +566,8 @@ function matchPatterns(
   location: string,
   locationType: "html" | "script",
   findings: Finding[],
-  seenKeys: Set<string>
+  seenKeys: Set<string>,
+  onFinding?: (finding: Finding) => void
 ): void {
   for (const p of PATTERNS) {
     if (findings.length >= MAX_FINDINGS_TOTAL) return;
@@ -561,7 +585,7 @@ function matchPatterns(
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
-    findings.push({
+    const finding: Finding = {
       id: `${p.id}-${findings.length}`,
       category: p.category,
       severity: p.severity,
@@ -571,7 +595,9 @@ function matchPatterns(
       location,
       locationType,
       remediation: p.remediation,
-    });
+    };
+    findings.push(finding);
+    onFinding?.(finding);
   }
 }
 
@@ -793,14 +819,40 @@ async function probeSourceMap(
   }
 }
 
-export async function scanTarget(rawUrl: string): Promise<ScanResult> {
+export async function scanTarget(
+  rawUrl: string,
+  onProgress?: (event: ScanProgressEvent) => void
+): Promise<ScanResult> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const errors: string[] = [];
   const findings: Finding[] = [];
   const seenKeys = new Set<string>();
 
+  // Helper: pushes a finding AND emits a "finding" progress event (if callback provided)
+  const addFinding = (f: Omit<Finding, "id">): void => {
+    const finding: Finding = { ...f, id: `${f.category}-${findings.length}` };
+    findings.push(finding);
+    onProgress?.({ type: "finding", finding });
+  };
+
+  // Helper: emits a "stage" progress event
+  const emitStage = (
+    stage: ScanProgressEvent extends { type: "stage" }
+      ? (ScanProgressEvent & { type: "stage" })["stage"]
+      : never,
+    detail: string
+  ): void => {
+    onProgress?.({
+      type: "stage",
+      stage: stage as any,
+      detail,
+      findingsCount: findings.length,
+    });
+  };
+
   // 1) Normalize + validate
+  emitStage("acquire", `Validating URL: ${rawUrl}`);
   let target: URL;
   try {
     const withProto = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
@@ -835,6 +887,7 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
   }
 
   // 2) Fetch HTML (bounded)
+  emitStage("fetch_html", `Fetching HTML from ${target.toString()}`);
   const htmlRes = await fetchBounded(
     target.toString(),
     HTML_TIMEOUT_MS,
@@ -852,12 +905,16 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
 
   // 3) Scan HTML for patterns + meta generator + comments
   if (html.length > 0) {
-    matchPatterns(html, target.toString(), "html", findings, seenKeys);
+    emitStage("analyze_html", `Scanning HTML for patterns (${html.length} bytes)`);
+    matchPatterns(html, target.toString(), "html", findings, seenKeys, (f) =>
+      onProgress?.({ type: "finding", finding: f })
+    );
     detectMetaGenerators(html, findings, seenKeys);
     detectHtmlComments(html, findings, seenKeys);
   }
 
   // 4) Extract script URLs (bounded) and fetch each (bounded)
+  emitStage("fetch_scripts", "Extracting and fetching <script> sources");
   const scriptUrls = extractScriptUrls(html, target.toString()).slice(0, MAX_SCRIPTS);
   const scripts: { url: string; text: string }[] = [];
   for (const u of scriptUrls) {
@@ -866,11 +923,15 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
       scripts.push({ url: u, text: r.text });
     }
   }
+  emitStage("pattern_match", `Pattern-matching ${scripts.length} scripts`);
   for (const s of scripts) {
-    matchPatterns(s.text, s.url, "script", findings, seenKeys);
+    matchPatterns(s.text, s.url, "script", findings, seenKeys, (f) =>
+      onProgress?.({ type: "finding", finding: f })
+    );
   }
 
   // 5) Source map probe — only for scripts that look like real JS bundles
+  emitStage("ai_fingerprint", "Probing source maps + AI fingerprints");
   for (const s of scripts) {
     if (findings.filter(f => f.category === "source_map").length >= 5) break;
     // skip tiny inline-looking scripts
@@ -884,8 +945,7 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
     const key = `smap_inline::${ref}`;
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
-    findings.push({
-      id: `smap_inline-${findings.length}`,
+    addFinding({
       category: "source_map",
       severity: "high",
       title: "Inline sourceMappingURL reference",
@@ -899,6 +959,7 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
   }
 
   // 7) Probe well-known leak paths (bounded)
+  emitStage("probe_paths", "Probing 12 well-known leak paths");
   const probeCount = await probeLeakPaths(target.origin, findings, seenKeys, errors);
 
   // 8) Sort by severity
@@ -915,7 +976,9 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
     return a.category.localeCompare(b.category);
   });
 
-  return {
+  emitStage("complete", `Scan complete — ${findings.length} finding${findings.length === 1 ? "" : "s"}`);
+
+  const result: ScanResult = {
     targetUrl: target.toString(),
     startedAt,
     finishedAt: new Date().toISOString(),
@@ -927,4 +990,6 @@ export async function scanTarget(rawUrl: string): Promise<ScanResult> {
     errors,
     ok: errors.length === 0,
   };
+  onProgress?.({ type: "complete", result });
+  return result;
 }
