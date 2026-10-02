@@ -617,16 +617,17 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ============ MAIN CONTENT ============ */}
-      {/* During a view transition, the main content zooms out (scale 0.97),
-          blurs (8px), and fades (0.55 opacity). When the transition ends,
-          it zooms back in + clears + re-opaques. This pairs with the wipe
-          overlay for a cinematic "page change" feel. */}
+      {/* During a view transition, the main content zooms out (scale 0.97) +
+          fades (0.55 opacity). opacity + scale are compositor-only (60fps).
+          filter:blur was removed per iart.ai 60fps cheat sheet (paint per frame). */}
       <motion.main
         className="flex-1 min-w-0 relative origin-top"
         animate={{
           opacity: viewTransitioning ? 0.55 : 1,
           scale: viewTransitioning ? 0.97 : 1,
-          filter: viewTransitioning ? "blur(8px)" : "blur(0px)",
+          // NOTE: filter:blur was removed per iart.ai 60fps cheat sheet —
+          // animating blur radius triggers paint per frame (expensive).
+          // opacity + scale are compositor-only (cheap, 60fps).
         }}
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
       >

@@ -151,7 +151,12 @@
       0 8px 32px -8px rgba(0, 0, 0, 0.4);
   }
   .glass-panel-hover {
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Only transition compositor-friendly properties (per iart.ai cheat sheet).
+       transform = compositor-only (cheap), border-color + box-shadow = paint (acceptable for hover).
+       Avoid "transition: all" — it watches every property including layout ones. */
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+               border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+               box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .glass-panel-hover:hover {
     border-color: rgba(34, 211, 238, 0.35);
@@ -382,3 +387,41 @@
   background: rgba(34, 211, 238, 0.25);
   color: #ffffff;
 }
+
+/* ============================================================================
+   REDUCED-MOTION GATE — accessibility
+   Disables all animations/transitions for users who prefer reduced motion.
+   https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   JUST-IN-TIME WILL-CHANGE — promote on intent, demote when done
+   Applied via .will-change-transform class on hover/enter, removed on leave.
+   Prevents layer accumulation from over-using will-change.
+   ============================================================================ */
+.will-change-transform {
+  will-change: transform, opacity;
+}
+.will-change-filter {
+  will-change: filter;
+}
+
+/* ============================================================================
+   ANIMATION PERFORMANCE NOTES (from iart.ai 60fps cheat sheet)
+   - transform + opacity → compositor-only → cheap, animate freely
+   - filter → paint + composite → expensive, avoid animating blur radius
+   - box-shadow → paint (large area) → use pseudo-element + opacity instead
+   - width/height/top/left → layout + paint → use transform/scale instead
+   - color/background-color → paint → acceptable in moderation
+   - clip-path → paint → moderate, cheaper than filter
+   ============================================================================ */
