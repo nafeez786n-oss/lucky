@@ -489,33 +489,13 @@ export default function Home() {
 
   // -------- Layout: sidebar (desktop/tablet) + main, top bar (mobile) --------
   return (
-    <div className="min-h-screen flex bg-transparent text-foreground relative">
-      {/* Bokeh Particle Galaxy — sole background (WebGL2 fragment shader) */}
-      <div className="fixed inset-0 -z-10 noise-overlay">
-        <div className="absolute inset-0" style={{ pointerEvents: "auto" }}>
-          <BokehParticleGalaxy
-            background="#020208"
-            baseColor="#22d3ee"
-            accentColor="#a78bfa"
-            scale={70}
-            arms={3}
-            twinkle={40}
-            hover={70}
-            speed={45}
-            advanced={{
-              brightness: 1.8,
-              dustDensity: 1.5,
-              dotDensity: 1.3,
-              haze: 0.7,
-              speckSize: 0.015,
-              dotSize: 0.035,
-              vignette: 0.5,
-            }}
-            className="w-full h-full"
-          />
-        </div>
-        {/* Subtle scanline overlay (very faint, on top of galaxy) */}
-        <div className="absolute inset-0 scanline-overlay opacity-20 pointer-events-none" />
+    <div className="min-h-screen flex bg-background text-foreground relative">
+      {/* 3D wireframe + grid + scanline background */}
+      <div className="fixed inset-0 -z-10 pointer-events-none noise-overlay">
+        <div className="absolute inset-0 bg-grid-fine scanline-overlay opacity-60" />
+        <ErrorBoundary>
+          <BackgroundScene />
+        </ErrorBoundary>
       </div>
 
       {/* View-transition wipe overlay + particle burst (fires when a sidebar nav item is clicked) */}
