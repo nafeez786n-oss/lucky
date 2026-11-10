@@ -46,21 +46,21 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ===== Premium dark cybersecurity console theme (full dark shade) ===== */
+/* ===== Premium dark cybersecurity console theme ===== */
 :root {
   --radius: 0.625rem;
   --background: oklch(0.04 0.005 260);            /* deep charcoal-black */
-  --foreground: oklch(0.72 0 0);                   /* dark grey — full dark shade */
+  --foreground: oklch(0.98 0 0);                   /* pure white */
   --card: oklch(0.07 0.008 260);                   /* very dark slate */
-  --card-foreground: oklch(0.68 0 0);              /* dark grey */
+  --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.06 0.008 260);
-  --popover-foreground: oklch(0.68 0 0);           /* dark grey */
-  --primary: oklch(0.72 0 0);                      /* dark grey */
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.98 0 0);                      /* white */
   --primary-foreground: oklch(0.04 0 0);
   --secondary: oklch(0.13 0.008 260);
-  --secondary-foreground: oklch(0.65 0 0);         /* dark grey */
+  --secondary-foreground: oklch(0.95 0 0);
   --muted: oklch(0.10 0.005 260);
-  --muted-foreground: oklch(0.45 0.005 260);       /* darker muted */
+  --muted-foreground: oklch(0.62 0.005 260);
   --accent: oklch(0.78 0.13 200);                  /* cyan-ish accent */
   --accent-foreground: oklch(0.05 0 0);
   --destructive: oklch(0.62 0.24 27);
@@ -85,19 +85,19 @@
 }
 
 .dark {
-  /* identical to :root — full dark shade */
+  /* identical to :root */
   --background: oklch(0.04 0.005 260);
-  --foreground: oklch(0.72 0 0);
+  --foreground: oklch(0.98 0 0);
   --card: oklch(0.07 0.008 260);
-  --card-foreground: oklch(0.68 0 0);
+  --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.06 0.008 260);
-  --popover-foreground: oklch(0.68 0 0);
-  --primary: oklch(0.72 0 0);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.98 0 0);
   --primary-foreground: oklch(0.04 0 0);
   --secondary: oklch(0.13 0.008 260);
-  --secondary-foreground: oklch(0.65 0 0);
+  --secondary-foreground: oklch(0.95 0 0);
   --muted: oklch(0.10 0.005 260);
-  --muted-foreground: oklch(0.45 0.005 260);
+  --muted-foreground: oklch(0.62 0.005 260);
   --accent: oklch(0.78 0.13 200);
   --accent-foreground: oklch(0.05 0 0);
   --destructive: oklch(0.62 0.24 27);
