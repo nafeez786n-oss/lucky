@@ -220,21 +220,43 @@ export default function Home() {
   //
   // The canvas is created by a next/dynamic({ ssr: false }) component, so it
   // does NOT exist when this effect first runs. We resolve the canvas lazily
-  // inside each handler — querySelector on a small subtree is cheap and avoids
-  // missing the canvas due to dynamic-import timing.
+  // inside the handlers.
+  //
+  // PERF: pointermove fires at 60–120+ Hz; doing new PointerEvent() +
+  // getBoundingClientRect() + dispatchEvent() on every event starves the
+  // galaxy's own RAF loop and makes the animation stutter. So we:
+  //   1. Throttle to one dispatch per animation frame (the component already
+  //      lerps tx→mx in its own RAF, so visually identical).
+  //   2. Cache canvas.getBoundingClientRect() and refresh only on
+  //      resize/scroll/visibilitychange — not per event (avoids layout
+  //      thrash).
   const galaxyWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const getCanvas = () => galaxyWrapperRef.current?.querySelector<HTMLCanvasElement>("canvas") ?? null;
-    const forwardMove = (e: PointerEvent) => {
+
+    let cachedCanvas: HTMLCanvasElement | null = null;
+    let cachedRect: DOMRect | null = null;
+    const refreshRect = () => {
       const canvas = getCanvas();
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
+      cachedCanvas = canvas;
+      cachedRect = canvas ? canvas.getBoundingClientRect() : null;
+    };
+
+    let pending: PointerEvent | null = null;
+    let rafId = 0;
+    const flush = () => {
+      rafId = 0;
+      const e = pending;
+      pending = null;
+      if (!e) return;
+      if (!cachedCanvas || !cachedRect) refreshRect();
+      if (!cachedCanvas || !cachedRect) return;
+      const rect = cachedRect;
       const inside =
         e.clientX >= rect.left && e.clientX <= rect.right &&
         e.clientY >= rect.top && e.clientY <= rect.bottom;
       if (!inside) {
-        // Pointer outside the canvas — fade the galaxy's hover state.
-        canvas.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
+        cachedCanvas.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
         return;
       }
       const synth = new PointerEvent("pointermove", {
@@ -245,16 +267,21 @@ export default function Home() {
         pointerId: e.pointerId,
         pressure: e.pressure,
       });
-      // offsetX / offsetY are read-only on PointerEvent — override via
-      // defineProperty so the component's onMove handler sees correct values.
       Object.defineProperty(synth, "offsetX", { value: e.clientX - rect.left });
       Object.defineProperty(synth, "offsetY", { value: e.clientY - rect.top });
-      canvas.dispatchEvent(synth);
+      cachedCanvas.dispatchEvent(synth);
+    };
+
+    const forwardMove = (e: PointerEvent) => {
+      pending = e;
+      if (rafId === 0) rafId = requestAnimationFrame(flush);
     };
     const forwardDown = (e: PointerEvent) => {
-      const canvas = getCanvas();
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
+      // pointerdown is rare — dispatch immediately so the gravity-well "click"
+      // feels responsive, not delayed by a frame.
+      if (!cachedCanvas || cachedCanvas !== getCanvas()) refreshRect();
+      if (!cachedCanvas || !cachedRect) return;
+      const rect = cachedRect;
       const synth = new PointerEvent("pointerdown", {
         bubbles: false,
         clientX: e.clientX,
@@ -265,11 +292,20 @@ export default function Home() {
       });
       Object.defineProperty(synth, "offsetX", { value: e.clientX - rect.left });
       Object.defineProperty(synth, "offsetY", { value: e.clientY - rect.top });
-      canvas.dispatchEvent(synth);
+      cachedCanvas.dispatchEvent(synth);
     };
+
+    refreshRect();
+    window.addEventListener("resize", refreshRect, { passive: true });
+    window.addEventListener("scroll", refreshRect, { passive: true, capture: true });
+    document.addEventListener("visibilitychange", refreshRect);
     window.addEventListener("pointermove", forwardMove, { passive: true });
     window.addEventListener("pointerdown", forwardDown, { passive: true });
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", refreshRect);
+      window.removeEventListener("scroll", refreshRect, { capture: true } as EventListenerOptions);
+      document.removeEventListener("visibilitychange", refreshRect);
       window.removeEventListener("pointermove", forwardMove);
       window.removeEventListener("pointerdown", forwardDown);
     };
@@ -565,12 +601,12 @@ export default function Home() {
             speed={20}
             advanced={{
               eye: 5, haze: 12, seed: 0, spin: 12, wind: 140, grain: 0,
-              centerX: 50, centerY: 51, dotSize: 120, dustDim: 29, armNoise: 50,
-              dotDrift: 10, dustSize: 120, parallax: 14, vignette: 0,
+              centerX: 50, centerY: 51, dotSize: 110, dustDim: 29, armNoise: 50,
+              dotDrift: 10, dustSize: 110, parallax: 14, vignette: 0,
               dotBright: 85, dustDrift: 30,
-              twinkleHz: 20, dotDensity: 140, dustBright: 62,
+              twinkleHz: 20, dotDensity: 120, dustBright: 62,
               armContrast: 60,
-              dustDensity: 140, pull: 60, swirl: 70, wellSize: 22, tilt: 30, hover: 72,
+              dustDensity: 120, pull: 60, swirl: 70, wellSize: 22, tilt: 30, hover: 72,
             }}
           />
         </div>
