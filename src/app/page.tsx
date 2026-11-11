@@ -212,6 +212,63 @@ export default function Home() {
     sessionRef.current = session;
   }, [session]);
 
+  // OriginKit Bokeh Particle Galaxy — forward window pointer events to the
+  // background canvas so the galaxy's gravity-well / parallax tilt reacts to
+  // the pointer across the whole page, not just over empty space (the canvas
+  // sits at -z-10 behind the dashboard UI and would otherwise only receive
+  // events when no UI element is on top of it).
+  const galaxyWrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const wrapper = galaxyWrapperRef.current;
+    if (!wrapper) return;
+    const canvas = wrapper.querySelector<HTMLCanvasElement>("canvas");
+    if (!canvas) return;
+    const forward = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      if (
+        e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top || e.clientY > rect.bottom
+      ) {
+        // Pointer outside the canvas — let the galaxy's pointerleave path fade it out.
+        canvas.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
+        return;
+      }
+      const synth = new PointerEvent("pointermove", {
+        bubbles: false,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerType: e.pointerType,
+        pointerId: e.pointerId,
+        pressure: e.pressure,
+      });
+      // offsetX / offsetY are read-only on PointerEvent — override via
+      // defineProperty so the component's onMove handler sees correct values.
+      Object.defineProperty(synth, "offsetX", { value: e.clientX - rect.left });
+      Object.defineProperty(synth, "offsetY", { value: e.clientY - rect.top });
+      canvas.dispatchEvent(synth);
+    };
+    const forwardDown = (e: PointerEvent) => {
+      const synth = new PointerEvent("pointerdown", {
+        bubbles: false,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerType: e.pointerType,
+        pointerId: e.pointerId,
+        pressure: e.pressure,
+      });
+      const rect = canvas.getBoundingClientRect();
+      Object.defineProperty(synth, "offsetX", { value: e.clientX - rect.left });
+      Object.defineProperty(synth, "offsetY", { value: e.clientY - rect.top });
+      canvas.dispatchEvent(synth);
+    };
+    window.addEventListener("pointermove", forward, { passive: true });
+    window.addEventListener("pointerdown", forwardDown, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", forward);
+      window.removeEventListener("pointerdown", forwardDown);
+    };
+  }, []);
+
   // Live LOCAL clock (uses the viewer's own timezone)
   useEffect(() => {
     const tick = () => {
@@ -493,21 +550,21 @@ export default function Home() {
     <div className="min-h-screen flex bg-transparent text-foreground relative">
       {/* OriginKit Bokeh Particle Galaxy — full-screen WebGL2 background */}
       <div className="fixed inset-0 -z-10 noise-overlay">
-        <div className="absolute inset-0" style={{ pointerEvents: "auto" }}>
+        <div ref={galaxyWrapperRef} className="absolute inset-0" style={{ pointerEvents: "auto" }}>
           <BokehParticleGalaxy
             background="#000000"
-            baseColor="#c81b1c"
-            accentColor="#ffffff"
+            baseColor="#22d3ee"
+            accentColor="#a78bfa"
             scale={70}
-            speed={40}
+            speed={20}
             advanced={{
-              eye: 5, haze: 12, lens: 35, seed: 0, spin: 12, wind: 140, grain: 0,
-              centerX: 50, centerY: 51, dotSize: 100, dustDim: 29, armNoise: 50,
-              dotDrift: 10, dustSize: 100, parallax: 4, vignette: 0,
-              bokehSize: 100, bokehSoft: 35, dotBright: 85, dustDrift: 30,
-              twinkleHz: 20, bokehCycle: 1400, dotDensity: 100, dustBright: 62,
-              armContrast: 60, bokehAspect: 160, bokehGrowth: 325,
-              dustDensity: 100, bokehOpacity: 100,
+              eye: 5, haze: 12, seed: 0, spin: 12, wind: 140, grain: 0,
+              centerX: 50, centerY: 51, dotSize: 120, dustDim: 29, armNoise: 50,
+              dotDrift: 10, dustSize: 120, parallax: 14, vignette: 0,
+              dotBright: 85, dustDrift: 30,
+              twinkleHz: 20, dotDensity: 140, dustBright: 62,
+              armContrast: 60,
+              dustDensity: 140, pull: 60, swirl: 70, wellSize: 22, tilt: 30, hover: 72,
             }}
           />
         </div>
