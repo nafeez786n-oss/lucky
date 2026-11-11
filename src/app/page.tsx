@@ -311,6 +311,51 @@ export default function Home() {
     };
   }, []);
 
+  // Backing-resolution override: render the WebGL canvas at reduced backing
+  // resolution to cut GPU fragment-shader cost. The Originkit component sets
+  // canvas.width = W * min(devicePixelRatio, 2) on every resize; we intercept
+  // via MutationObserver and scale it down. The browser upscales the smaller
+  // backing store to the CSS size — slight softness on 1× DPR displays, still
+  // sharp on 2× DPR (where there's supersampling headroom to spare).
+  // At BACKING_SCALE=0.6 that's 0.36× the original pixel count = ~64% GPU savings.
+  useEffect(() => {
+    const wrapper = galaxyWrapperRef.current;
+    if (!wrapper) return;
+    const BACKING_SCALE = 0.6;
+    let canvas: HTMLCanvasElement | null = null;
+    let attrMO: MutationObserver | null = null;
+    let lastAppliedW = 0;
+    let lastAppliedH = 0;
+    const apply = () => {
+      if (!canvas) return;
+      const w = canvas.width;
+      const h = canvas.height;
+      // Skip if the current values already match what we last set — prevents
+      // a feedback loop (our own write also triggers the MutationObserver).
+      if (w === lastAppliedW && h === lastAppliedH) return;
+      lastAppliedW = Math.max(1, Math.round(w * BACKING_SCALE));
+      lastAppliedH = Math.max(1, Math.round(h * BACKING_SCALE));
+      canvas.width = lastAppliedW;
+      canvas.height = lastAppliedH;
+    };
+    const attach = () => {
+      const c = wrapper.querySelector<HTMLCanvasElement>("canvas");
+      if (!c || c === canvas) return;
+      canvas = c;
+      attrMO = new MutationObserver(apply);
+      attrMO.observe(c, { attributes: true, attributeFilter: ["width", "height"] });
+      apply();
+    };
+    attach();
+    // Canvas may not exist yet (next/dynamic ssr:false) — watch for it.
+    const treeMO = new MutationObserver(attach);
+    treeMO.observe(wrapper, { childList: true, subtree: true });
+    return () => {
+      attrMO?.disconnect();
+      treeMO.disconnect();
+    };
+  }, []);
+
   // Live LOCAL clock (uses the viewer's own timezone)
   useEffect(() => {
     const tick = () => {
