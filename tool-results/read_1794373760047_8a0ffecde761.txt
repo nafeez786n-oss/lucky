@@ -1,0 +1,751 @@
+     1→/* eslint-disable */
+     2→// Delivered by Originkit · stack: nextjs · styling: tailwind
+     3→// Set these props to match the Originkit preview:
+     4→//   advanced={{"eye":5,"haze":12,"lens":35,"seed":0,"spin":12,"wind":140,"grain":0,"centerX":50,"centerY":51,"dotSize":100,"dustDim":29,"armNoise":50,"dotDrift":10,"dustSize":100,"parallax":4,"vignette":0,"bokehSize":100,"bokehSoft":35,"dotBright":85,"dustDrift":30,"twinkleHz":20,"bokehCycle":1400,"dotDensity":100,"dustBright":62,"armContrast":60,"bokehAspect":160,"bokehGrowth":325,"dustDensity":100,"bokehOpacity":100}}
+     5→"use client";
+     6→
+     7→const addPropertyControls = () => {};
+     8→
+     9→/**
+    10→ * BokehParticleGalaxy — Recreate the reference exactly. No description was given — read what it is and how it moves from the clip itself.
+    11→ *
+    12→ * Built on the Background template (lib/templates/BackgroundTemplate.tsx).
+    13→ * Only the EFFECT block and the effect controls are specific to this component.
+    14→ *
+    15→ * @framerIntrinsicWidth 1200
+    16→ * @framerIntrinsicHeight 800
+    17→ * @framerSupportedLayoutWidth any-prefer-fixed
+    18→ * @framerSupportedLayoutHeight any-prefer-fixed
+    19→ */
+    20→import { useEffect, useRef, type CSSProperties } from "react"
+    21→
+    22→// ── moments-kit v1 ──
+    23→// Shared by every moments/ component. Canonical copy: moments/kit/moments-kit.v1.ts.
+    24→// Edit there, then paste verbatim into each component; moments/checks/kit-sync.mjs enforces it.
+    25→
+    26→type RGBA = [number, number, number, number]
+    27→
+    28→const COLOR_CACHE = new Map<string, RGBA | null>()
+    29→
+    30→function parseColor(input: string | undefined, fallback: RGBA): RGBA {
+    31→    if (typeof input !== "string") return fallback
+    32→    let hit = COLOR_CACHE.get(input)
+    33→    if (hit === undefined) {
+    34→        hit = parseColorRaw(input)
+    35→        COLOR_CACHE.set(input, hit)
+    36→    }
+    37→    return hit ?? fallback
+    38→}
+    39→
+    40→function parseColorRaw(raw: string): RGBA | null {
+    41→    let s = raw.trim()
+    42→    const v = /^var\(\s*--[^,]+,\s*(.+)\)$/.exec(s)
+    43→    if (v) s = v[1].trim()
+    44→    if (s[0] === "#") {
+    45→        const h = s.slice(1)
+    46→        const x = (a: string) => parseInt(a, 16)
+    47→        let r: number, g: number, b: number, a = 255
+    48→        if (h.length === 3 || h.length === 4) {
+    49→            r = x(h[0] + h[0]); g = x(h[1] + h[1]); b = x(h[2] + h[2])
+    50→            if (h.length === 4) a = x(h[3] + h[3])
+    51→        } else if (h.length === 6 || h.length === 8) {
+    52→            r = x(h.slice(0, 2)); g = x(h.slice(2, 4)); b = x(h.slice(4, 6))
+    53→            if (h.length === 8) a = x(h.slice(6, 8))
+    54→        } else return null
+    55→        const out: RGBA = [r / 255, g / 255, b / 255, a / 255]
+    56→        return out.every(Number.isFinite) ? out : null
+    57→    }
+    58→    const m = /^(rgba?|hsla?)\(([^)]*)\)$/i.exec(s)
+    59→    if (!m) return null
+    60→    const parts = m[2].split(/[\s,/]+/).filter(Boolean)
+    61→    if (parts.length < 3) return null
+    62→    const num = (p: string, scale: number) =>
+    63→        p.endsWith("%") ? (parseFloat(p) / 100) * scale : parseFloat(p)
+    64→    const alpha = parts.length > 3 ? num(parts[3], 1) : 1
+    65→    let rgb: [number, number, number]
+    66→    if (m[1].toLowerCase().startsWith("rgb")) {
+    67→        rgb = [num(parts[0], 255) / 255, num(parts[1], 255) / 255, num(parts[2], 255) / 255]
+    68→    } else {
+    69→        const hh = (((parseFloat(parts[0]) % 360) + 360) % 360) / 360
+    70→        const ss = num(parts[1], 1), ll = num(parts[2], 1)
+    71→        const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss
+    72→        const p = 2 * ll - q
+    73→        const f = (t: number) => {
+    74→            t = (t + 1) % 1
+    75→            if (t < 1 / 6) return p + (q - p) * 6 * t
+    76→            if (t < 1 / 2) return q
+    77→            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    78→            return p
+    79→        }
+    80→        rgb = [f(hh + 1 / 3), f(hh), f(hh - 1 / 3)]
+    81→    }
+    82→    const out: RGBA = [rgb[0], rgb[1], rgb[2], alpha]
+    83→    return out.every(Number.isFinite) ? out.map((c) => Math.min(1, Math.max(0, c))) as RGBA : null
+    84→}
+    85→
+    86→function cssRgba(c: RGBA): string {
+    87→    return `rgba(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)}, ${c[3]})`
+    88→}
+    89→
+    90→interface FramerFont {
+    91→    fontFamily?: string
+    92→    fontWeight?: number | string
+    93→    fontStyle?: string
+    94→    fontSize?: number | string
+    95→    lineHeight?: number | string
+    96→    letterSpacing?: number | string
+    97→}
+    98→
+    99→const FALLBACK_FAMILY = "Inter, system-ui, sans-serif"
+   100→
+   101→function quoteFamily(family: string): string {
+   102→    return family
+   103→        .split(",")
+   104→        .map((n) => n.trim())
+   105→        .filter(Boolean)
+   106→        .map((n) => (n[0] === "'" || n[0] === '"' || /^[a-z-]+$/i.test(n) ? n : `"${n.replace(/"/g, '\\"')}"`))
+   107→        .join(", ")
+   108→}
+   109→
+   110→function fontShorthand(font: FramerFont | undefined, fallbackSize: number, fallbackWeight: number) {
+   111→    const f = font || {}
+   112→    let size = fallbackSize
+   113→    if (typeof f.fontSize === "number" && Number.isFinite(f.fontSize)) size = f.fontSize
+   114→    else if (typeof f.fontSize === "string") {
+   115→        const n = parseFloat(f.fontSize)
+   116→        if (Number.isFinite(n)) size = f.fontSize.includes("rem") ? n * 16 : n
+   117→    }
+   118→    let lineHeight = size * 1.3
+   119→    if (typeof f.lineHeight === "number" && Number.isFinite(f.lineHeight))
+   120→        lineHeight = f.lineHeight <= 4 ? f.lineHeight * size : f.lineHeight
+   121→    else if (typeof f.lineHeight === "string") {
+   122→        const n = parseFloat(f.lineHeight)
+   123→        if (Number.isFinite(n))
+   124→            lineHeight = f.lineHeight.endsWith("%") ? (n / 100) * size : f.lineHeight.endsWith("em") ? n * size : n <= 4 ? n * size : n
+   125→    }
+   126→    const family = f.fontFamily ? quoteFamily(f.fontFamily) : FALLBACK_FAMILY
+   127→    const shorthand = `${f.fontStyle || "normal"} ${f.fontWeight || fallbackWeight} ${size}px ${family}`
+   128→    return { shorthand, size, lineHeight }
+   129→}
+   130→
+   131→function wrapLines(measure: (s: string) => number, text: string, maxWidth: number): string[] {
+   132→    const out: string[] = []
+   133→    for (const para of String(text ?? "").split("\n")) {
+   134→        const words = para.split(/ +/)
+   135→        let line = ""
+   136→        for (const w of words) {
+   137→            const next = line ? `${line} ${w}` : w
+   138→            if (line && measure(next) > maxWidth) {
+   139→                out.push(line)
+   140→                line = w
+   141→            } else line = next
+   142→        }
+   143→        out.push(line)
+   144→    }
+   145→    return out
+   146→}
+   147→
+   148→function radiusPx(w: number, h: number, pct: number): number {
+   149→    return (Math.min(w, h) / 2) * Math.min(1, Math.max(0, pct / 100))
+   150→}
+   151→
+   152→type Phase = "idle" | "playing" | "held" | "restoring"
+   153→interface TriggerState { phase: Phase; t: number; timer: number; prevPlay: boolean | undefined }
+   154→interface TriggerInput {
+   155→    dt: number; animDt: number; playDur: number; restoreDur: number; holdS: number
+   156→    play: boolean | undefined; clicked: boolean; onCanvas: boolean
+   157→}
+   158→interface TriggerEvents { started: boolean; completed: boolean; restored: boolean }
+   159→
+   160→const TRIGGER_IDLE: TriggerState = { phase: "idle", t: 0, timer: 0, prevPlay: undefined }
+   161→const CANVAS_IDLE_S = 1
+   162→// R3 ruling: compare with epsilon everywhere a float accumulator (dt/animDt
+   163→// summed frame by frame) is checked against a duration boundary — repeated
+   164→// 0.1 additions land on 0.9999999999999999, not 1, so a strict >= misses the
+   165→// transition for exactly one extra frame and the reducer's own tests (which
+   166→// assert phase after an exact frame count) go red on that alone.
+   167→const EPS = 1e-9
+   168→
+   169→// I2 ruling: controlled mode (play !== undefined) reacts to the play LEVEL
+   170→// each step, not an edge against prevPlay — an uncontrolled run (play was
+   171→// undefined, so prevPlay never became true) that switches straight to
+   172→// play:false must still interrupt on that very frame. prevPlay stays on the
+   173→// state shape (set below every step) but is no longer read for a decision.
+   174→// I1 ruling: only the two *interrupt* transitions — playing→restoring and
+   175→// restoring→playing — mirror progress (t = 1 - s.t) so a controlled toggle
+   176→// keeps the visual position continuous. held→restoring and idle→playing are
+   177→// normal starts and still begin at t = 0.
+   178→function stepTrigger(s: TriggerState, i: TriggerInput): { s: TriggerState; e: TriggerEvents } {
+   179→    const e: TriggerEvents = { started: false, completed: false, restored: false }
+   180→    const n: TriggerState = { ...s, prevPlay: i.play }
+   181→    const controlled = i.play !== undefined
+   182→    const start = (t = 0) => { n.phase = "playing"; n.t = t; n.timer = 0; e.started = true }
+   183→    const restore = (t = 0) => { n.phase = "restoring"; n.t = t; n.timer = 0 }
+   184→
+   185→    switch (s.phase) {
+   186→        case "idle":
+   187→            n.timer = s.timer + i.dt
+   188→            if (controlled ? i.play === true : i.clicked || (i.onCanvas && n.timer >= CANVAS_IDLE_S - EPS)) start()
+   189→            break
+   190→        case "playing":
+   191→            if (controlled && i.play === false) { restore(1 - s.t); break }
+   192→            n.t = Math.min(1, s.t + i.animDt / Math.max(1e-3, i.playDur))
+   193→            if (n.t >= 1 - EPS) { n.t = 1; n.phase = "held"; n.timer = 0; e.completed = true }
+   194→            break
+   195→        case "held":
+   196→            if (controlled) { if (i.play === false) restore(0); break }
+   197→            n.timer = s.timer + i.dt
+   198→            if (n.timer >= i.holdS - EPS) restore(0)
+   199→            break
+   200→        case "restoring":
+   201→            if (controlled && i.play === true) { start(1 - s.t); break }
+   202→            n.t = Math.min(1, s.t + i.animDt / Math.max(1e-3, i.restoreDur))
+   203→            if (n.t >= 1 - EPS) { n.phase = "idle"; n.t = 0; n.timer = 0; e.restored = true }
+   204→            break
+   205→    }
+   206→    return { s: n, e }
+   207→}
+   208→
+   209→interface CardSpec {
+   210→    w: number; h: number; dpr: number; fill: string; rounded: number
+   211→    title: string; body: string; font: FramerFont | undefined; textColor: string
+   212→    image: HTMLImageElement | null; pad: number
+   213→}
+   214→interface GlyphBox { ch: string; x: number; y: number; w: number; h: number }
+   215→
+   216→function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+   217→    ctx.beginPath()
+   218→    ctx.moveTo(x + r, y)
+   219→    ctx.arcTo(x + w, y, x + w, y + h, r)
+   220→    ctx.arcTo(x + w, y + h, x, y + h, r)
+   221→    ctx.arcTo(x, y + h, x, y, r)
+   222→    ctx.arcTo(x, y, x + w, y, r)
+   223→    ctx.closePath()
+   224→}
+   225→
+   226→/** Paints the card into ctx (canvas already sized w*dpr × h*dpr). Returns glyph boxes in CSS px when asked. */
+   227→function drawCard(ctx: CanvasRenderingContext2D, spec: CardSpec, wantGlyphs: boolean): GlyphBox[] {
+   228→    const { w, h, dpr, pad } = spec
+   229→    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+   230→    ctx.clearRect(0, 0, w, h)
+   231→    const r = radiusPx(w, h, spec.rounded)
+   232→    roundRectPath(ctx, 0, 0, w, h, r)
+   233→    ctx.fillStyle = cssRgba(parseColor(spec.fill, [1, 1, 1, 1]))
+   234→    ctx.fill()
+   235→    ctx.save()
+   236→    roundRectPath(ctx, 0, 0, w, h, r)
+   237→    ctx.clip()
+   238→    let y = pad
+   239→    if (spec.image && spec.image.naturalWidth > 0) {
+   240→        const ih = Math.round(h * 0.5)
+   241→        const s = Math.max(w / spec.image.naturalWidth, ih / spec.image.naturalHeight)
+   242→        const dw = spec.image.naturalWidth * s, dh = spec.image.naturalHeight * s
+   243→        ctx.save()
+   244→        ctx.beginPath(); ctx.rect(0, 0, w, ih); ctx.clip()
+   245→        ctx.drawImage(spec.image, (w - dw) / 2, (ih - dh) / 2, dw, dh)
+   246→        ctx.restore()
+   247→        y = ih + pad
+   248→    }
+   249→    const glyphs: GlyphBox[] = []
+   250→    const color = cssRgba(parseColor(spec.textColor, [0, 0, 0, 1]))
+   251→    const title = fontShorthand(spec.font, 22, 700)
+   252→    const body = fontShorthand(spec.font ? { ...spec.font, fontSize: title.size * 0.68, fontWeight: 400 } : undefined, 15, 400)
+   253→    const block = (text: string, f: { shorthand: string; size: number; lineHeight: number }) => {
+   254→        if (!text) return
+   255→        ctx.font = f.shorthand
+   256→        ctx.fillStyle = color
+   257→        ctx.textBaseline = "top"
+   258→        ctx.textAlign = "left"
+   259→        for (const line of wrapLines((s) => ctx.measureText(s).width, text, w - pad * 2)) {
+   260→            if (y + f.size > h - pad * 0.5) break
+   261→            ctx.fillText(line, pad, y)
+   262→            if (wantGlyphs) {
+   263→                // Prefix measures, so kerning between neighbours is respected.
+   264→                let prefix = ""
+   265→                for (const ch of line) {
+   266→                    const x = pad + ctx.measureText(prefix).width
+   267→                    const cw = pad + ctx.measureText(prefix + ch).width - x
+   268→                    if (ch.trim()) glyphs.push({ ch, x, y, w: cw, h: f.lineHeight })
+   269→                    prefix += ch
+   270→                }
+   271→            }
+   272→            y += f.lineHeight
+   273→        }
+   274→        y += f.size * 0.4
+   275→    }
+   276→    block(spec.title, title)
+   277→    block(spec.body, body)
+   278→    ctx.restore()
+   279→    return glyphs
+   280→}
+   281→
+   282→function loadImage(src: string | undefined): Promise<HTMLImageElement | null> {
+   283→    return new Promise((resolve) => {
+   284→        if (!src || typeof Image === "undefined") return resolve(null)
+   285→        const img = new Image()
+   286→        img.crossOrigin = "anonymous"
+   287→        img.onload = () => resolve(img)
+   288→        img.onerror = () => resolve(null)
+   289→        img.src = src
+   290→    })
+   291→}
+   292→
+   293→function createProgram<U extends string>(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: readonly U[]) {
+   294→    const sh = (type: number, src: string) => {
+   295→        const s = gl.createShader(type)!
+   296→        gl.shaderSource(s, src)
+   297→        gl.compileShader(s)
+   298→        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+   299→            const log = gl.getShaderInfoLog(s) || "shader compile failed"
+   300→            gl.deleteShader(s)
+   301→            throw new Error(log)
+   302→        }
+   303→        return s
+   304→    }
+   305→    const program = gl.createProgram()!
+   306→    const vsh = sh(gl.VERTEX_SHADER, vs)
+   307→    const fsh = sh(gl.FRAGMENT_SHADER, fs)
+   308→    gl.attachShader(program, vsh)
+   309→    gl.attachShader(program, fsh)
+   310→    gl.linkProgram(program)
+   311→    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+   312→        const log = gl.getProgramInfoLog(program) || "link failed"
+   313→        gl.deleteShader(vsh)
+   314→        gl.deleteShader(fsh)
+   315→        gl.deleteProgram(program)
+   316→        throw new Error(log)
+   317→    }
+   318→    // Shaders are flagged for deletion once linked; the GL driver frees them
+   319→    // for real after they're detached, which happens when the program itself
+   320→    // is eventually deleted. No reason to keep the compile units around.
+   321→    gl.deleteShader(vsh)
+   322→    gl.deleteShader(fsh)
+   323→    const u = {} as Record<U, WebGLUniformLocation>
+   324→    for (const name of uniforms) {
+   325→        const loc = gl.getUniformLocation(program, name)
+   326→        if (!loc) {
+   327→            gl.deleteProgram(program)
+   328→            throw new Error(`uniform ${name} not found`)
+   329→        }
+   330→        u[name] = loc
+   331→    }
+   332→    return { program, u }
+   333→}
+   334→// ── /moments-kit ──
+   335→
+   336→// ══ EFFECT — replace from here ══════════════════════════════════════════════
+   337→
+   338→/** Tuning values. Stripped at publish; the tuned values are baked in here. */
+   339→const ADVANCED_DEFAULTS = {
+   340→    spin: 12,
+   341→    centerX: 50,
+   342→    centerY: 51,
+   343→    wind: 140,
+   344→    armContrast: 60,
+   345→    armNoise: 50,
+   346→    eye: 5,
+   347→    dustDensity: 100,
+   348→    dustSize: 100,
+   349→    dustDim: 29,
+   350→    dustBright: 62,
+   351→    haze: 12,
+   352→    dustDrift: 30,
+   353→    dotDensity: 100,
+   354→    dotSize: 100,
+   355→    dotBright: 85,
+   356→    dotDrift: 10,
+   357→    twinkleHz: 20,
+   358→    seed: 0,
+   359→    pull: 60,
+   360→    swirl: 70,
+   361→    wellSize: 22,
+   362→    tilt: 30,
+   363→    parallax: 4,
+   364→    hover: 72,
+   365→    grain: 0,
+   366→    vignette: 0,
+   367→}
+   368→
+   369→// ── moved controls (builder) ──
+   370→/**
+   371→ * Controls moved in the builder: into Advanced, out of it, or into groups of
+   372→ * their own. The code reads each one where it was first written, so the props
+   373→ * are put back in that shape before anything reads them.
+   374→ */
+   375→const MOVED_CONTROLS: { into: Record<string, string>; out: Record<string, string> } = {"into":{},"out":{"hover":"advanced"}}
+   376→const GROUP_FALLBACKS: Record<string, any> = { advanced: ADVANCED_DEFAULTS }
+   377→function withMovedControls(props: any): any {
+   378→    const out = { ...props }
+   379→    for (const [k, g] of Object.entries(MOVED_CONTROLS.into)) out[k] = props?.[g]?.[k] ?? GROUP_FALLBACKS[g]?.[k]
+   380→    for (const [k, g] of Object.entries(MOVED_CONTROLS.out)) {
+   381→        if (out[k] !== undefined) out[g] = { ...(out[g] ?? {}), [k]: out[k] }
+   382→    }
+   383→    return out
+   384→}
+   385→// ── /moved controls ──
+   386→
+   387→/** Effect-only props (≤ 3). Add matching rows at the end of addPropertyControls. */
+   388→interface EffectProps {
+   389→    arms?: number
+   390→    twinkle?: number
+   391→    advanced?: Partial<typeof ADVANCED_DEFAULTS>
+   392→}
+   393→
+   394→/** Extra uniforms for this effect, set every frame. */
+   395→function effectUniforms(gl: WebGL2RenderingContext, u: (name: string) => WebGLUniformLocation | null, p: Props): void {
+   396→    const adv = { ...ADVANCED_DEFAULTS, ...(p.advanced ?? {}) }
+   397→    const cl = (v: unknown, d: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, num(v, d)))
+   398→    gl.uniform1f(u("uArms"), Math.round(cl(p.arms, 3, 1, 8)))
+   399→
+   400→    gl.uniform1f(u("uTwinkle"), cl(p.twinkle, 50, 0, 100) / 50)
+   401→    gl.uniform1f(u("uHoverAmt"), cl(adv.hover, 50, 0, 100) / 50)
+   402→    gl.uniform1f(u("uPull"), cl(adv.pull, 60, 0, 100) / 100)
+   403→    gl.uniform1f(u("uSwirl"), cl(adv.swirl, 70, 0, 100) / 100)
+   404→    gl.uniform1f(u("uWellSize"), cl(adv.wellSize, 22, 5, 60) / 100)
+   405→    gl.uniform1f(u("uTilt"), cl(adv.tilt, 30, 0, 100) / 100)
+   406→    gl.uniform1f(u("uParallax"), cl(adv.parallax, 4, 0, 30) / 100)
+   407→    gl.uniform1f(u("uGrain"), cl(adv.grain, 0, 0, 100) / 100)
+   408→    gl.uniform1f(u("uVignette"), cl(adv.vignette, 0, 0, 100) / 100)
+   409→    gl.uniform1f(u("uSpin"), (cl(adv.spin, 12, -180, 180) * Math.PI) / 180)
+   410→    gl.uniform2f(u("uCenter"), cl(adv.centerX, 50, 0, 100) / 100, 1 - cl(adv.centerY, 51, 0, 100) / 100)
+   411→    gl.uniform1f(u("uWind"), cl(adv.wind, 140, -300, 300) / 100)
+   412→    gl.uniform1f(u("uArmContrast"), cl(adv.armContrast, 60, 0, 100) / 100)
+   413→    gl.uniform1f(u("uArmNoise"), cl(adv.armNoise, 50, 0, 200) / 100)
+   414→    gl.uniform1f(u("uEye"), cl(adv.eye, 5, 0, 40) / 100)
+   415→    gl.uniform1f(u("uDustDensity"), cl(adv.dustDensity, 100, 0, 250) / 100)
+   416→    gl.uniform1f(u("uDustSize"), cl(adv.dustSize, 100, 20, 400) / 100)
+   417→    gl.uniform1f(u("uDustDim"), cl(adv.dustDim, 29, 0, 100) / 100)
+   418→    gl.uniform1f(u("uDustBright"), cl(adv.dustBright, 62, 0, 100) / 100)
+   419→    gl.uniform1f(u("uHaze"), cl(adv.haze, 12, 0, 100) / 100)
+   420→    gl.uniform1f(u("uDustDrift"), cl(adv.dustDrift, 30, 1, 300))
+   421→    gl.uniform1f(u("uDotDensity"), cl(adv.dotDensity, 100, 0, 300) / 100)
+   422→    gl.uniform1f(u("uDotSize"), cl(adv.dotSize, 100, 20, 300) / 100)
+   423→    gl.uniform1f(u("uDotBright"), cl(adv.dotBright, 85, 0, 100) / 100)
+   424→    gl.uniform1f(u("uDotDrift"), cl(adv.dotDrift, 10, 1, 120))
+   425→
+   426→    gl.uniform1f(u("uTwinkleHz"), cl(adv.twinkleHz, 20, 0, 60))
+   427→    gl.uniform1f(u("uSeed"), Math.round(cl(adv.seed, 0, 0, 100)))
+   428→}
+   429→
+   430→/* A 3D dust galaxy: spiral-arm density field, three slow speck layers and two medium-dot layers,
+   431→   all rotating counter-clockwise as one body while each layer zooms toward the camera (parallax). */
+   432→const FRAG = `#version 300 es
+   433→precision highp float;
+   434→uniform vec2 uRes;
+   435→uniform float uTime;
+   436→uniform vec2 uMouse;
+   437→uniform float uHover;
+   438→uniform vec3 uBg;
+   439→uniform vec3 uBase;
+   440→uniform vec3 uAccent;
+   441→uniform float uScale;
+   442→uniform float uArms;
+   443→uniform float uTwinkle;
+   444→uniform float uHoverAmt;
+   445→uniform float uPull;
+   446→uniform float uSwirl;
+   447→uniform float uWellSize;
+   448→uniform float uTilt;
+   449→uniform float uDown;
+   450→uniform float uParallax;
+   451→uniform float uGrain;
+   452→uniform float uVignette;
+   453→uniform float uSpin;
+   454→uniform vec2 uCenter;
+   455→uniform float uWind;
+   456→uniform float uArmContrast;
+   457→uniform float uArmNoise;
+   458→uniform float uEye;
+   459→uniform float uDustDensity;
+   460→uniform float uDustSize;
+   461→uniform float uDustDim;
+   462→uniform float uDustBright;
+   463→uniform float uHaze;
+   464→uniform float uDustDrift;
+   465→uniform float uDotDensity;
+   466→uniform float uDotSize;
+   467→uniform float uDotBright;
+   468→uniform float uDotDrift;
+   469→uniform float uTwinkleHz;
+   470→uniform float uSeed;
+   471→out vec4 outColor;
+   472→
+   473→mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+   474→float h12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+   475→vec4 h42(vec2 p) { vec4 p4 = fract(vec4(p.xyxy) * vec4(0.1031, 0.1030, 0.0973, 0.1099)); p4 += dot(p4, p4.wzxy + 33.33); return fract((p4.xxyz + p4.yzzw) * p4.zywx); }
+   476→float vnoise(vec2 p) {
+   477→    vec2 i = floor(p), f = fract(p);
+   478→    f = f * f * (3.0 - 2.0 * f);
+   479→    return mix(mix(h12(i), h12(i + vec2(1.0, 0.0)), f.x), mix(h12(i + vec2(0.0, 1.0)), h12(i + vec2(1.0, 1.0)), f.x), f.y);
+   480→}
+   481→float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 7.1; a *= 0.5; } return s / 0.9375; }
+   482→
+   483→// Spiral-arm density (0..~1.6) and dust filaments along the arms.
+   484→float galaxy(vec2 p, out float fil) {
+   485→    float r = max(length(p), 1e-4);
+   486→    float lr = log(r);
+   487→    vec2 pw = rot(uWind * lr) * p;          // log spiral -> straight spokes
+   488→    vec2 dir = pw / r;
+   489→    float warp = (fbm(dir * 2.5 + vec2(lr * 1.3, uSeed)) - 0.5) * uArmNoise * 6.0;
+   490→    float arm = 0.5 + 0.5 * cos(uArms * atan(pw.y, pw.x) + warp);
+   491→    arm = pow(arm, 1.6);
+   492→    fil = fbm(dir * 16.0 + vec2(lr * 2.4, uSeed * 1.7));
+   493→    fil = smoothstep(0.3, 0.75, fil);
+   494→    float d = mix(1.0, mix(0.25, 1.25, arm), uArmContrast) * mix(0.45, 1.3, fil);
+   495→    d *= mix(0.3, 1.0, smoothstep(uEye * 0.5, uEye * 1.6, r));
+   496→    return d;
+   497→}
+   498→
+   499→void main() {
+   500→    float H = max(uRes.y, 1.0);
+   501→    float asp = uRes.x / H;
+   502→    float sc0 = max(uScale, 0.05);
+   503→    vec2 q = (gl_FragCoord.xy - uCenter * uRes) / H;
+   504→    vec2 m = (uMouse - uCenter) * vec2(asp, 1.0);
+   505→    float hv = uHover * uHoverAmt;
+   506→    // Pointer: a gravity well. Space around it is twisted and drawn in, so the dust drifting past
+   507→    // spirals into a dark core ringed with light; pressing deepens the well, and the whole disc
+   508→    // tips toward the pointer like a plane seen in 3D.
+   509→    float force = hv * (1.0 + 0.8 * uDown);
+   510→    vec2 dm = q - m;
+   511→    float dr = length(dm);
+   512→    float wr = max(uWellSize, 0.02);
+   513→    float fall = exp(-dr * dr / (wr * wr));
+   514→    dm = rot(-min(4.0, uSwirl * 2.4 * force) * fall) * dm;
+   515→    dm *= 1.0 + min(2.0, uPull * 1.5 * force) * fall;   // < 2.2 keeps the warp from folding over
+   516→    q = m + dm;
+   517→    vec2 tv = (uMouse - 0.5) * vec2(asp, 1.0) * hv * uTilt;
+   518→    q /= max(0.4, 1.0 + dot(q, tv));
+   519→    q /= sc0;
+   520→    float px = 1.0 / (H * sc0);
+   521→    float ang = uTime * uSpin;               // counter-clockwise on screen
+   522→    vec2 p = rot(-ang) * q;
+   523→    vec2 par = rot(-ang) * ((uMouse - 0.5) * vec2(asp, 1.0) * hv * uParallax);
+   524→    float fil;
+   525→    float dens = galaxy(p, fil);
+   526→    float ring = exp(-pow((dr - wr * 0.3) / (wr * 0.16), 2.0));
+   527→    float glow = 1.0 + force * (0.5 * fall + 1.6 * ring);
+   528→
+   529→    vec3 col = uBg + uBase * (uHaze * fil * fil * min(dens, 1.2) * 0.6);
+   530→
+   531→    // Far specks: three slow depth layers.
+   532→    float dust = 0.0;
+   533→    for (int i = 0; i < 3; i++) {
+   534→        float fi = float(i);
+   535→        float cyc = uTime / max(uDustDrift, 0.1) + fi / 3.0;
+   536→        float z = fract(cyc);
+   537→        float s = exp2(z);
+   538→        float w = smoothstep(0.0, 0.2, z) * (1.0 - smoothstep(0.8, 1.0, z));
+   539→        vec2 c = (p - par * (0.15 + 0.1 * fi)) / (s * 0.0085) + vec2(fi * 37.0 + floor(cyc) * 11.0 + uSeed * 17.0, fi * 19.0);
+   540→        vec2 id = floor(c);
+   541→        vec4 h = h42(id);
+   542→        if (h.x > dens * 0.8 * uDustDensity) continue;
+   543→        vec2 o = 0.2 + 0.6 * h.yz;
+   544→        float d = length(fract(c) - o) * 0.0085 * s;
+   545→        float rs = mix(0.0008, 0.0017, h.w) * uDustSize * mix(1.0, 1.35, z);
+   546→        float a = 1.0 - smoothstep(rs - px * 0.6, rs + px * 0.6, d);
+   547→        float b = mix(uDustDim, uDustBright, pow(h.w, 0.8));
+   548→        if (h.w > 0.94) b = max(b, 0.79);
+   549→        float tn = uTime * uTwinkleHz + h.y * 7.0;
+   550→        float tw = mix(h12(id + floor(tn)), h12(id + floor(tn) + 1.0), smoothstep(0.0, 1.0, fract(tn)));
+   551→        b *= 1.0 - min(0.9, 0.6 * uTwinkle * (1.0 - tw));
+   552→        dust += a * b * w;
+   553→    }
+   554→    col += uBase * dust * glow;
+   555→
+   556→    // Medium dots: two mid-depth layers, concentrated on the arms.
+   557→    float dots = 0.0;
+   558→    for (int i = 0; i < 2; i++) {
+   559→        float fi = float(i);
+   560→        float cyc = uTime / max(uDotDrift, 0.1) + fi * 0.5;
+   561→        float z = fract(cyc);
+   562→        float s = exp2(z * 0.8);
+   563→        float w = smoothstep(0.0, 0.2, z) * (1.0 - smoothstep(0.8, 1.0, z));
+   564→        vec2 c = (p - par * (0.4 + 0.2 * fi)) / (s * 0.045) + vec2(fi * 71.0 + floor(cyc) * 13.0 + uSeed * 5.0, 41.0 + fi * 23.0);
+   565→        vec2 id = floor(c);
+   566→        vec4 h = h42(id);
+   567→        if (h.x > min(1.0, dens * dens * 1.1) * uDotDensity) continue;
+   568→        vec2 o = 0.25 + 0.5 * h.yz;
+   569→        float d = length(fract(c) - o) * 0.045 * s;
+   570→        float rs = mix(0.0022, 0.0038, h.w) * uDotSize * mix(1.0, 1.25, z);
+   571→        float edge = 0.0009 + px * 0.5;
+   572→        float a = 1.0 - smoothstep(rs - edge, rs + edge, d);
+   573→        float b = mix(uDotBright * 0.9, min(1.0, uDotBright * 1.08), h.y);
+   574→        float tn = uTime * uTwinkleHz * 0.5 + h.z * 5.0;
+   575→        float tw = mix(h12(id + floor(tn) + 3.0), h12(id + floor(tn) + 4.0), smoothstep(0.0, 1.0, fract(tn)));
+   576→        b *= 1.0 - min(0.6, 0.3 * uTwinkle * (1.0 - tw));
+   577→        dots += a * b * w;
+   578→    }
+   579→    col += uAccent * dots * glow;
+   580→
+   581→    // The well itself: a faint lit ring and a dark event-horizon core.
+   582→    col += uAccent * 0.05 * force * ring;
+   583→    float hole = exp(-dr * dr / (wr * wr * 0.012));
+   584→    col = mix(col, uBg, clamp(force, 0.0, 1.0) * hole * 0.9);
+   585→
+   586→    vec2 uv = gl_FragCoord.xy / max(uRes, vec2(1.0));
+   587→    float vg = smoothstep(0.35, 0.95, length((uv - 0.5) * vec2(asp, 1.0)));
+   588→    col *= 1.0 - uVignette * vg;
+   589→    col += (h12(gl_FragCoord.xy + fract(uTime * 7.0) * 517.0) - 0.5) * uGrain * 0.2;
+   590→    outColor = vec4(max(col, vec3(0.0)), 1.0);
+   591→}`
+   592→
+   593→// ══ /EFFECT ═════════════════════════════════════════════════════════════════
+   594→
+   595→interface Props extends EffectProps {
+   596→    background?: string
+   597→    baseColor?: string
+   598→    accentColor?: string
+   599→    speed?: number
+   600→    scale?: number
+   601→    style?: CSSProperties
+   602→}
+   603→
+   604→function num(v: unknown, d: number): number {
+   605→    return typeof v === "number" && Number.isFinite(v) ? v : d
+   606→}
+   607→
+   608→const VERT = `#version 300 es
+   609→in vec2 aPos;
+   610→void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`
+   611→
+   612→export default function BokehParticleGalaxy(props: Props) {
+   613→    props = withMovedControls(props)
+   614→    // Read live from propsRef; destructured here so their defaults sit in the signature.
+   615→    const { background = "#000000", baseColor = "#FFFFFF", accentColor = "#FFFFFF", speed = 50, scale = 60, style } = props
+   616→    void [baseColor, accentColor, speed, scale]
+   617→    const rootRef = useRef<HTMLDivElement>(null)
+   618→    const canvasRef = useRef<HTMLCanvasElement>(null)
+   619→    const propsRef = useRef(props)
+   620→    propsRef.current = props
+   621→
+   622→    useEffect(() => {
+   623→        const root = rootRef.current
+   624→        const canvas = canvasRef.current
+   625→        if (!root || !canvas) return
+   626→        const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false })
+   627→        if (!gl) return
+   628→        const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+   629→
+   630→        const sh = (type: number, src: string) => {
+   631→            const s = gl.createShader(type)!
+   632→            gl.shaderSource(s, src)
+   633→            gl.compileShader(s)
+   634→            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error("BokehParticleGalaxy shader:", gl.getShaderInfoLog(s))
+   635→            return s
+   636→        }
+   637→        const prog = gl.createProgram()!
+   638→        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT))
+   639→        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG))
+   640→        gl.linkProgram(prog)
+   641→        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+   642→            console.error("BokehParticleGalaxy link:", gl.getProgramInfoLog(prog))
+   643→            return
+   644→        }
+   645→        gl.useProgram(prog)
+   646→        const buf = gl.createBuffer()
+   647→        gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+   648→        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
+   649→        const loc = gl.getAttribLocation(prog, "aPos")
+   650→        gl.enableVertexAttribArray(loc)
+   651→        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+   652→        const cache = new Map<string, WebGLUniformLocation | null>()
+   653→        const u = (name: string) => {
+   654→            if (!cache.has(name)) cache.set(name, gl.getUniformLocation(prog, name))
+   655→            return cache.get(name) ?? null
+   656→        }
+   657→
+   658→        let W = 0
+   659→        let H = 0
+   660→        const resize = () => {
+   661→            W = root.offsetWidth
+   662→            H = root.offsetHeight
+   663→            const dpr = Math.min(window.devicePixelRatio || 1, 2)
+   664→            canvas.width = Math.max(1, Math.round(W * dpr))
+   665→            canvas.height = Math.max(1, Math.round(H * dpr))
+   666→        }
+   667→        const ro = new ResizeObserver(resize)
+   668→        ro.observe(root)
+   669→        resize()
+   670→
+   671→        let mx = 0.5
+   672→        let my = 0.5
+   673→        let tx = 0.5
+   674→        let ty = 0.5
+   675→        let over = 0
+   676→        let hov = 0
+   677→        let down = 0
+   678→        let dn = 0
+   679→        const onMove = (e: PointerEvent) => {
+   680→            if (W <= 0 || H <= 0) return
+   681→            tx = e.offsetX / W
+   682→            ty = 1 - e.offsetY / H
+   683→            over = 1
+   684→        }
+   685→        const onLeave = () => {
+   686→            over = 0
+   687→        }
+   688→        const onDown = (e: PointerEvent) => {
+   689→            onMove(e)
+   690→            down = 1
+   691→        }
+   692→        const onUp = () => {
+   693→            down = 0
+   694→        }
+   695→        canvas.addEventListener("pointermove", onMove)
+   696→        canvas.addEventListener("pointerleave", onLeave)
+   697→        canvas.addEventListener("pointerdown", onDown)
+   698→        window.addEventListener("pointerup", onUp)
+   699→        window.addEventListener("pointercancel", onUp)
+   700→
+   701→        let clock = 0
+   702→        let raf = 0
+   703→        let last = -1
+   704→        const frame = (now: number) => {
+   705→            raf = requestAnimationFrame(frame)
+   706→            const dt = last < 0 ? 0 : Math.min((now - last) / 1000, 1 / 20)
+   707→            last = now
+   708→            const p = propsRef.current
+   709→            clock = (clock + dt * (Math.max(0, Math.min(100, num(p.speed, 50))) / 50) * (reduced ? 0.25 : 1)) % 3600
+   710→            const k = 1 - Math.exp(-dt * 6)
+   711→            mx += (tx - mx) * k
+   712→            my += (ty - my) * k
+   713→            hov += (over - hov) * k
+   714→            dn += (down - dn) * (1 - Math.exp(-dt * 5))
+   715→            const bg = parseColor(p.background, [0.03, 0.03, 0.04, 1])
+   716→            const base = parseColor(p.baseColor, [0.23, 0.18, 0.55, 1])
+   717→            const acc = parseColor(p.accentColor, [0.91, 0.42, 0.57, 1])
+   718→            gl.viewport(0, 0, canvas.width, canvas.height)
+   719→            gl.uniform2f(u("uRes"), canvas.width, canvas.height)
+   720→            gl.uniform1f(u("uTime"), clock)
+   721→            gl.uniform2f(u("uMouse"), mx, my)
+   722→            // Raw 0..1: the FRAG scales it by the Advanced `hover` row (RULES.md).
+   723→            gl.uniform1f(u("uHover"), hov)
+   724→            gl.uniform1f(u("uDown"), dn)
+   725→            gl.uniform3f(u("uBg"), bg[0], bg[1], bg[2])
+   726→            gl.uniform3f(u("uBase"), base[0], base[1], base[2])
+   727→            gl.uniform3f(u("uAccent"), acc[0], acc[1], acc[2])
+   728→            gl.uniform1f(u("uScale"), Math.max(10, Math.min(300, num(p.scale, 100))) / 100)
+   729→            effectUniforms(gl, u, p)
+   730→            gl.drawArrays(gl.TRIANGLES, 0, 3)
+   731→        }
+   732→        raf = requestAnimationFrame(frame)
+   733→        return () => {
+   734→            cancelAnimationFrame(raf)
+   735→            ro.disconnect()
+   736→            canvas.removeEventListener("pointermove", onMove)
+   737→            canvas.removeEventListener("pointerleave", onLeave)
+   738→            canvas.removeEventListener("pointerdown", onDown)
+   739→            window.removeEventListener("pointerup", onUp)
+   740→            window.removeEventListener("pointercancel", onUp)
+   741→        }
+   742→    }, [])
+   743→
+   744→    return (
+   745→        <div ref={rootRef} style={{ position: "relative", width: "100%", height: "100%", minWidth: 1200, minHeight: 800, overflow: "hidden", background, ...style }}>
+   746→            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
+   747→        </div>
+   748→    )
+   749→}
+   750→
+   751→

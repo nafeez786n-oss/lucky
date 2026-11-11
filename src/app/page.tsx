@@ -86,8 +86,9 @@ const BackgroundScene = dynamic(
   { ssr: false }
 );
 
+// OriginKit Bokeh Particle Galaxy — fetched via originkit CLI (cmp_live_... key)
 const BokehParticleGalaxy = dynamic(
-  () => import("@/components/bokeh-galaxy/bokeh-particle-galaxy").then((m) => m.BokehParticleGalaxy),
+  () => import("@/components/originkit/ui/bokeh-particle-galaxy"),
   { ssr: false }
 );
 
@@ -489,13 +490,28 @@ export default function Home() {
 
   // -------- Layout: sidebar (desktop/tablet) + main, top bar (mobile) --------
   return (
-    <div className="min-h-screen flex bg-background text-foreground relative">
-      {/* 3D wireframe + grid + scanline background */}
-      <div className="fixed inset-0 -z-10 pointer-events-none noise-overlay">
-        <div className="absolute inset-0 bg-grid-fine scanline-overlay opacity-60" />
-        <ErrorBoundary>
-          <BackgroundScene />
-        </ErrorBoundary>
+    <div className="min-h-screen flex bg-transparent text-foreground relative">
+      {/* OriginKit Bokeh Particle Galaxy — full-screen WebGL2 background */}
+      <div className="fixed inset-0 -z-10 noise-overlay">
+        <div className="absolute inset-0" style={{ pointerEvents: "auto" }}>
+          <BokehParticleGalaxy
+            background="#020208"
+            baseColor="#22d3ee"
+            accentColor="#a78bfa"
+            scale={60}
+            speed={50}
+            advanced={{
+              eye: 5, haze: 12, lens: 35, seed: 0, spin: 12, wind: 140, grain: 0,
+              centerX: 50, centerY: 51, dotSize: 100, dustDim: 29, armNoise: 50,
+              dotDrift: 10, dustSize: 100, parallax: 4, vignette: 0,
+              bokehSize: 100, bokehSoft: 35, dotBright: 85, dustDrift: 30,
+              twinkleHz: 20, bokehCycle: 1400, dotDensity: 100, dustBright: 62,
+              armContrast: 60, bokehAspect: 160, bokehGrowth: 325,
+              dustDensity: 100, bokehOpacity: 100,
+            }}
+          />
+        </div>
+        <div className="absolute inset-0 scanline-overlay opacity-20 pointer-events-none" />
       </div>
 
       {/* View-transition wipe overlay + particle burst (fires when a sidebar nav item is clicked) */}
