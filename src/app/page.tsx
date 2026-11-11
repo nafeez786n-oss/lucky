@@ -217,19 +217,23 @@ export default function Home() {
   // the pointer across the whole page, not just over empty space (the canvas
   // sits at -z-10 behind the dashboard UI and would otherwise only receive
   // events when no UI element is on top of it).
+  //
+  // The canvas is created by a next/dynamic({ ssr: false }) component, so it
+  // does NOT exist when this effect first runs. We resolve the canvas lazily
+  // inside each handler — querySelector on a small subtree is cheap and avoids
+  // missing the canvas due to dynamic-import timing.
   const galaxyWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const wrapper = galaxyWrapperRef.current;
-    if (!wrapper) return;
-    const canvas = wrapper.querySelector<HTMLCanvasElement>("canvas");
-    if (!canvas) return;
-    const forward = (e: PointerEvent) => {
+    const getCanvas = () => galaxyWrapperRef.current?.querySelector<HTMLCanvasElement>("canvas") ?? null;
+    const forwardMove = (e: PointerEvent) => {
+      const canvas = getCanvas();
+      if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      if (
-        e.clientX < rect.left || e.clientX > rect.right ||
-        e.clientY < rect.top || e.clientY > rect.bottom
-      ) {
-        // Pointer outside the canvas — let the galaxy's pointerleave path fade it out.
+      const inside =
+        e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom;
+      if (!inside) {
+        // Pointer outside the canvas — fade the galaxy's hover state.
         canvas.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
         return;
       }
@@ -248,6 +252,9 @@ export default function Home() {
       canvas.dispatchEvent(synth);
     };
     const forwardDown = (e: PointerEvent) => {
+      const canvas = getCanvas();
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
       const synth = new PointerEvent("pointerdown", {
         bubbles: false,
         clientX: e.clientX,
@@ -256,15 +263,14 @@ export default function Home() {
         pointerId: e.pointerId,
         pressure: e.pressure,
       });
-      const rect = canvas.getBoundingClientRect();
       Object.defineProperty(synth, "offsetX", { value: e.clientX - rect.left });
       Object.defineProperty(synth, "offsetY", { value: e.clientY - rect.top });
       canvas.dispatchEvent(synth);
     };
-    window.addEventListener("pointermove", forward, { passive: true });
+    window.addEventListener("pointermove", forwardMove, { passive: true });
     window.addEventListener("pointerdown", forwardDown, { passive: true });
     return () => {
-      window.removeEventListener("pointermove", forward);
+      window.removeEventListener("pointermove", forwardMove);
       window.removeEventListener("pointerdown", forwardDown);
     };
   }, []);
