@@ -627,7 +627,7 @@ export default function Home() {
             className="md:hidden fixed top-[57px] left-0 right-0 z-20 border-b border-white/5 bg-black/90 backdrop-blur-xl overflow-hidden"
           >
             <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between text-[10px] font-mono text-white/40">
+              <div className="flex items-center justify-between text-[10px] font-mono text-white/70">
                 <span>UTC</span>
                 <span className="tabular-nums text-white/70">{clock}</span>
               </div>
@@ -653,7 +653,7 @@ export default function Home() {
         {/* Top status strip (desktop only) */}
         <div className="hidden md:block border-b border-white/5 bg-black/30 backdrop-blur-md">
           <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
-            <div className="flex items-center gap-5 text-white/40">
+            <div className="flex items-center gap-5 text-white/70">
               <span className="flex items-center gap-1.5">
                 <Crosshair className="w-3 h-3" />
                 TARGET: <span className="text-white/80">{result?.targetUrl ?? "—"}</span>
@@ -667,7 +667,7 @@ export default function Home() {
                 STATUS: <span className="text-white/80">{scanning ? "SCANNING" : result ? "DONE" : "IDLE"}</span>
               </span>
             </div>
-            <div className="text-white/40">
+            <div className="text-white/70">
               {session?.user ? `OP: ${session.user.email}` : "GUEST MODE"}
             </div>
           </div>
@@ -732,9 +732,9 @@ export default function Home() {
                 <span className="text-white">Find every exposed</span>
                 <br />
                 <span className="text-gradient-cyan-violet">secret.</span>
-                <span className="text-white/50"> Before attackers do.</span>
+                <span className="text-white/80"> Before attackers do.</span>
               </h1>
-              <p className="text-base md:text-lg text-white/50 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-base md:text-lg text-white/80 max-w-2xl mx-auto leading-relaxed">
                 LeakGuard fetches the target, follows up to 20 scripts, probes 12 leak paths, and
                 surfaces API keys, source maps, and AI fingerprints — in a single bounded request.
               </p>
@@ -749,13 +749,13 @@ export default function Home() {
               className="glass-panel glass-panel-hover rounded-2xl p-2.5 flex flex-col sm:flex-row gap-2.5 max-w-3xl mx-auto"
             >
               <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/70" />
                 <Input
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="pl-11 h-14 bg-transparent border-0 focus-visible:ring-0 font-mono text-base placeholder:text-white/30"
+                  className="pl-11 h-14 bg-transparent border-0 focus-visible:ring-0 font-mono text-base placeholder:text-white/60"
                   disabled={scanning}
                   autoComplete="off"
                   spellCheck={false}
@@ -780,8 +780,8 @@ export default function Home() {
               </Button>
             </motion.form>
 
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono text-white/40">
-              <span className="text-white/30">try:</span>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono text-white/70">
+              <span className="text-white/60">try:</span>
               {["https://httpbin.org", "https://example.com"].map((t) => (
                 <button
                   key={t}
@@ -826,10 +826,10 @@ export default function Home() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold tracking-tight">Verification Constellation</h3>
-                    <p className="text-[11px] text-white/40 font-mono">interactive · 3D · drag to orbit</p>
+                    <p className="text-[11px] text-white/70 font-mono">interactive · 3D · drag to orbit</p>
                   </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/40">
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/70">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
                   LIVE
                 </div>
@@ -840,7 +840,7 @@ export default function Home() {
                 </ErrorBoundary>
               </div>
               <div className="px-6 py-3 border-t border-white/5 text-center">
-                <p className="text-xs text-white/50 max-w-2xl mx-auto">
+                <p className="text-xs text-white/80 max-w-2xl mx-auto">
                   Each orbiting model represents one leak category LeakGuard probes — a key for API
                   keys, lock for secrets, fingerprint for AI-tool traces, document for exposed files,
                   pyramid for source maps, avatar for PII, bug for debug routes, gear for misconfig.
@@ -861,11 +861,11 @@ export default function Home() {
             <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Detection Matrix</h2>
-                <p className="text-sm md:text-base text-white/50 mt-2">
+                <p className="text-sm md:text-base text-white/80 mt-2">
                   Eight leak categories scanned on every request.
                 </p>
               </div>
-              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/40">
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/70">
                 <Zap className="w-3 h-3" />
                 {DETECTION_CARDS.length} CATEGORIES
               </div>
@@ -921,20 +921,20 @@ export default function Home() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
                   <Database className="w-4 h-4 text-cyan-300" />
-                  Saved Scans <span className="text-white/40 text-sm">({savedScans.length})</span>
+                  Saved Scans <span className="text-white/70 text-sm">({savedScans.length})</span>
                 </h3>
                 {savedScans.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearSavedScans} className="text-xs text-white/50 hover:text-red-400">
+                  <Button variant="ghost" size="sm" onClick={clearSavedScans} className="text-xs text-white/80 hover:text-red-400">
                     <Trash2 className="w-3 h-3 mr-1" />
                     Clear all
                   </Button>
                 )}
               </div>
               {loadingSaved ? (
-                <div className="text-xs font-mono text-white/40">Loading…</div>
+                <div className="text-xs font-mono text-white/70">Loading…</div>
               ) : savedScans.length === 0 ? (
                 <div className="glass-panel rounded-xl p-5 text-center border-dashed border-white/10">
-                  <p className="text-xs text-white/50">
+                  <p className="text-xs text-white/80">
                     No saved scans yet. Run a scan while logged in to persist it here.
                   </p>
                 </div>
@@ -975,7 +975,7 @@ export default function Home() {
             >
               <h3 className="text-base font-semibold tracking-tight flex items-center gap-2 mb-4">
                 <Activity className="w-4 h-4 text-violet-300" />
-                Session History <span className="text-white/40 text-sm">({sessionHistory.length})</span>
+                Session History <span className="text-white/70 text-sm">({sessionHistory.length})</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sessionHistory.map((h, i) => {
@@ -995,7 +995,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="border-t border-white/5 bg-black/30 backdrop-blur-md mt-12">
-          <div className="px-6 py-4 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-white/40">
+          <div className="px-6 py-4 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-white/70">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               LEAKGUARD · BOUNDED SCANNER · NO POLLING · NO INFINITE LOOPS
@@ -1042,7 +1042,7 @@ function SidebarContent({
               <span className="text-white">LEAK</span>
               <span className="text-cyan-300">GUARD</span>
             </h1>
-            <p className="text-[10px] text-white/40 mt-1.5 font-mono uppercase tracking-[0.2em]">
+            <p className="text-[10px] text-white/70 mt-1.5 font-mono uppercase tracking-[0.2em]">
               AI Security Scanner
             </p>
           </div>
@@ -1058,7 +1058,7 @@ function SidebarContent({
 
       {/* Nav */}
       <nav className="px-3 lg:px-3 py-4 flex-1 space-y-0.5">
-        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/60 px-2 mb-2">
           Sections
         </p>
         {NAV_ITEMS.map((n) => {
@@ -1079,7 +1079,7 @@ function SidebarContent({
                   className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-cyan-400"
                 />
               )}
-              <n.icon className={`w-4 h-4 shrink-0 ${active ? "text-cyan-300" : "text-white/40 group-hover:text-cyan-300"}`} />
+              <n.icon className={`w-4 h-4 shrink-0 ${active ? "text-cyan-300" : "text-white/70 group-hover:text-cyan-300"}`} />
               <span className="hidden lg:block flex-1 font-medium text-left">{n.label}</span>
               <ChevronRight className={`hidden lg:block w-3 h-3 transition ${active ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
             </button>
@@ -1089,14 +1089,14 @@ function SidebarContent({
 
       {/* Operator */}
       <div className="px-3 lg:px-3 py-3 border-t border-white/5">
-        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/30 px-2 mb-2">
+        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/60 px-2 mb-2">
           Operator
         </p>
         <AuthButton />
       </div>
 
       {/* Footer */}
-      <div className="px-4 lg:px-6 py-3 border-t border-white/5 text-[10px] font-mono text-white/30 flex items-center justify-between">
+      <div className="px-4 lg:px-6 py-3 border-t border-white/5 text-[10px] font-mono text-white/60 flex items-center justify-between">
         <span className="flex items-center gap-1.5">
           <CircuitBoard className="w-3 h-3" />
           <span className="hidden lg:inline">v1.0</span>
@@ -1124,7 +1124,7 @@ function StatusRow({
 }) {
   return (
     <div className="flex items-center justify-between text-[11px] font-mono">
-      <span className="text-white/40 uppercase tracking-wider flex items-center gap-1.5">
+      <span className="text-white/70 uppercase tracking-wider flex items-center gap-1.5">
         {Icon && <Icon className="w-3 h-3" />}
         <span className="hidden lg:inline">{label}</span>
       </span>
@@ -1165,21 +1165,21 @@ function DetectionCard({
         >
           <card.icon className="w-4 h-4" style={{ color: accentColor }} />
         </div>
-        <div className="text-[9px] font-mono text-white/30 px-2 py-0.5 rounded border border-white/10">
+        <div className="text-[9px] font-mono text-white/60 px-2 py-0.5 rounded border border-white/10">
           ACTIVE
         </div>
       </div>
       <h4 className="text-sm font-semibold mb-1">{card.title}</h4>
-      <p className="text-xs text-white/50 leading-snug mb-3">{card.description}</p>
+      <p className="text-xs text-white/80 leading-snug mb-3">{card.description}</p>
       <div className="space-y-1.5">
         {card.examples.slice(0, 3).map((ex) => (
-          <div key={ex} className="text-[10px] font-mono text-white/40 truncate flex items-center gap-1.5">
+          <div key={ex} className="text-[10px] font-mono text-white/70 truncate flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full" style={{ background: accentColor }} />
             {ex}
           </div>
         ))}
       </div>
-      <div className="mt-3 pt-3 border-t border-white/5 text-[10px] font-mono text-white/40 flex items-center justify-between">
+      <div className="mt-3 pt-3 border-t border-white/5 text-[10px] font-mono text-white/70 flex items-center justify-between">
         <span>coverage</span>
         <span style={{ color: accentColor }}>{card.coverage}</span>
       </div>
@@ -1199,7 +1199,7 @@ function ScanProgress({ currentStage }: { currentStage: number }) {
         </div>
         <div>
           <h3 className="text-lg font-semibold tracking-tight">Scan in progress</h3>
-          <p className="text-xs text-white/50 font-mono">
+          <p className="text-xs text-white/80 font-mono">
             Stage {Math.min(currentStage + 1, SCAN_STAGES.length)} of {SCAN_STAGES.length} · bounded execution
           </p>
         </div>
@@ -1269,7 +1269,7 @@ function ScanProgress({ currentStage }: { currentStage: number }) {
           <p className="text-xs font-mono text-white/70">
             <span className="text-cyan-300">→</span> {SCAN_STAGES[Math.min(currentStage, SCAN_STAGES.length - 1)].label}
           </p>
-          <p className="text-[11px] text-white/40 mt-0.5">
+          <p className="text-[11px] text-white/70 mt-0.5">
             {currentStage === 0 && "Validating target URL against http(s) protocol and length limits."}
             {currentStage === 1 && "Downloading HTML with 15s timeout and 1.5MB cap."}
             {currentStage === 2 && "Running regex matchers across HTML and inline scripts."}
@@ -1371,7 +1371,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
       <div className="glass-panel rounded-2xl overflow-hidden">
         {/* Header band with avatar + identity */}
         <div className="relative p-6 md:p-8 border-b border-white/5 bg-gradient-to-br from-cyan-400/5 via-transparent to-violet-400/5">
-          <div className="absolute top-3 right-4 text-[9px] font-mono text-white/30 tracking-wider">
+          <div className="absolute top-3 right-4 text-[9px] font-mono text-white/60 tracking-wider">
             VISIBLE ONLY TO YOU
           </div>
           <div className="flex flex-col sm:flex-row items-start gap-5">
@@ -1398,7 +1398,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
               </div>
               <h4 className="text-2xl font-bold tracking-tight mb-1 truncate">{displayName}</h4>
               {loading ? (
-                <div className="flex items-center gap-2 text-xs text-white/40">
+                <div className="flex items-center gap-2 text-xs text-white/70">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Loading profile…
                 </div>
@@ -1414,11 +1414,11 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-sm text-white/60 font-mono">
-                  <Mail className="w-3.5 h-3.5 text-white/40" />
+                  <Mail className="w-3.5 h-3.5 text-white/70" />
                   <span className="truncate">{email}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 text-xs text-white/40 font-mono mt-2">
+              <div className="flex items-center gap-1.5 text-xs text-white/70 font-mono mt-2">
                 <Calendar className="w-3 h-3" />
                 Member since {loading ? "…" : memberSince}
               </div>
@@ -1457,7 +1457,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
                 Last Scan
               </div>
               <p className="text-sm font-mono text-white/80 break-all mb-1">{lastScan.targetUrl}</p>
-              <div className="flex items-center gap-3 text-[10px] font-mono text-white/40">
+              <div className="flex items-center gap-3 text-[10px] font-mono text-white/70">
                 <span>{new Date(lastScan.createdAt).toLocaleString()}</span>
                 <span>·</span>
                 <span>{lastScan.findingCount} findings</span>
@@ -1502,7 +1502,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-white/90 mb-0.5">{s.title}</p>
-                    <p className="text-[11px] text-white/50 leading-snug">{s.desc}</p>
+                    <p className="text-[11px] text-white/80 leading-snug">{s.desc}</p>
                   </div>
                 </motion.div>
               ))}
@@ -1512,7 +1512,7 @@ function ProfileSection({ email, name }: { email: string; name: string | null })
 
         {/* Action footer */}
         <div className="px-6 md:px-8 py-4 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-[10px] font-mono text-white/40 max-w-md">
+          <p className="text-[10px] font-mono text-white/70 max-w-md">
             Your email and name are only visible here — never exposed elsewhere in the website.
           </p>
           <Button
@@ -1555,7 +1555,7 @@ function ProfileStatCard({
       />
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">{label}</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-white/70">{label}</p>
           <p className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}>{value}</p>
         </div>
         <Icon className="w-4 h-4 opacity-50" style={{ color: a.hex }} />
@@ -1617,7 +1617,7 @@ function DebuggingSolutions({
           <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
             Debugging Solutions
           </h3>
-          <p className="text-sm text-white/50 mt-1 max-w-xl">
+          <p className="text-sm text-white/80 mt-1 max-w-xl">
             Step-by-step action plan for the {total} {total === 1 ? "finding" : "findings"} exposed in this scan. Start with critical issues.
           </p>
         </div>
@@ -1671,14 +1671,14 @@ function DebuggingSolutions({
                       >
                         {sol.priority}
                       </span>
-                      <span className="text-[10px] font-mono text-white/40">
+                      <span className="text-[10px] font-mono text-white/70">
                         {meta?.label ?? sol.category} · {count} {count === 1 ? "finding" : "findings"}
                       </span>
                     </div>
                     <h4 className="text-base font-semibold tracking-tight text-white/90">
                       {sol.title}
                     </h4>
-                    <p className="text-xs text-white/50 mt-1 leading-relaxed">{sol.summary}</p>
+                    <p className="text-xs text-white/80 mt-1 leading-relaxed">{sol.summary}</p>
                   </div>
                 </div>
 
@@ -1709,7 +1709,7 @@ function DebuggingSolutions({
                   {/* Tools links */}
                   {sol.tools && sol.tools.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-white/5">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/40 mb-2">
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/70 mb-2">
                         Tools & Resources
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1743,7 +1743,7 @@ function DebuggingSolutions({
             Verification checklist
           </h4>
         </div>
-        <p className="text-xs text-white/50 mb-4 leading-relaxed">
+        <p className="text-xs text-white/80 mb-4 leading-relaxed">
           After applying the fixes above, run through this checklist before re-scanning to confirm everything is in place.
         </p>
         <div className="grid sm:grid-cols-2 gap-2">
@@ -1767,7 +1767,7 @@ function DebuggingSolutions({
           ))}
         </div>
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-          <p className="text-[10px] font-mono text-white/40">
+          <p className="text-[10px] font-mono text-white/70">
             Re-scan after applying fixes to verify — should show 0 findings.
           </p>
           <Button
@@ -1838,7 +1838,7 @@ function ResultDashboard({
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
             {total === 0 ? "Target is clean" : `${total} ${total === 1 ? "finding" : "findings"} exposed`}
           </h2>
-          <p className="text-sm text-white/50 mt-1 font-mono break-all">{result.targetUrl}</p>
+          <p className="text-sm text-white/80 mt-1 font-mono break-all">{result.targetUrl}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onExport} disabled={total === 0}
@@ -1846,7 +1846,7 @@ function ResultDashboard({
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export JSON
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClear} className="text-white/50 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={onClear} className="text-white/80 hover:text-white">
             <Trash2 className="w-3.5 h-3.5 mr-1.5" />
             Clear
           </Button>
@@ -1964,7 +1964,7 @@ function ResultDashboard({
 
           {Object.entries(grouped).map(([cat, list]) => (
             <TabsContent key={cat} value={cat} className="mt-4 space-y-2">
-              <p className="text-xs text-white/50 mb-3 border-l-2 border-cyan-400/40 pl-3">
+              <p className="text-xs text-white/80 mb-3 border-l-2 border-cyan-400/40 pl-3">
                 {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.description}
               </p>
               {list.map((f, i) => (
@@ -2015,7 +2015,7 @@ function PremiumStat({
       />
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">{label}</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-white/70">{label}</p>
           <p className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}>
             {displayValue}
           </p>
@@ -2058,7 +2058,7 @@ function useCountUp(target: number, duration: number): number {
 function MetaCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="glass-panel rounded-lg px-3 py-2.5">
-      <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono">{label}</div>
+      <div className="text-[9px] uppercase tracking-wider text-white/70 font-mono">{label}</div>
       <div className="text-sm font-mono mt-0.5 text-white/80">{value}</div>
     </div>
   );
@@ -2111,7 +2111,7 @@ function FindingRow({
             {sev.label}
           </Badge>
           <motion.div animate={{ rotate: expanded ? 180 : 0 }}>
-            <ChevronDown className="w-4 h-4 text-white/40 shrink-0" />
+            <ChevronDown className="w-4 h-4 text-white/70 shrink-0" />
           </motion.div>
         </CollapsibleTrigger>
 
@@ -2121,7 +2121,7 @@ function FindingRow({
 
             <div className="grid sm:grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg border border-white/10 bg-black/40 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono mb-1">
+                <div className="text-[9px] uppercase tracking-wider text-white/70 font-mono mb-1">
                   Evidence
                 </div>
                 <code className="font-mono text-[11px] break-all block text-cyan-200/90">
@@ -2129,7 +2129,7 @@ function FindingRow({
                 </code>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/40 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-white/40 font-mono mb-1">
+                <div className="text-[9px] uppercase tracking-wider text-white/70 font-mono mb-1">
                   Location
                 </div>
                 {finding.locationType === "url" ? (
@@ -2202,7 +2202,7 @@ function HistoryCard({
         </Badge>
       </div>
       <p className="text-xs font-mono truncate text-white/70">{scan.targetUrl}</p>
-      <p className="text-[10px] font-mono text-white/40 mt-1">
+      <p className="text-[10px] font-mono text-white/70 mt-1">
         {(scan.durationMs / 1000).toFixed(1)}s · {scan.fetchedBytes}b · {scan.scriptCount}js
       </p>
     </div>

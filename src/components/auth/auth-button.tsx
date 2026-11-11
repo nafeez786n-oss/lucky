@@ -58,7 +58,7 @@ export function AuthButton() {
           variant="ghost"
           size="sm"
           onClick={() => signOut({ redirect: false })}
-          className="text-white/50 hover:text-red-300 hover:bg-red-400/5 shrink-0 px-2"
+          className="text-white/80 hover:text-red-300 hover:bg-red-400/5 shrink-0 px-2"
           aria-label="Sign out"
           title="Sign out"
         >
