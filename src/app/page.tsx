@@ -495,11 +495,11 @@ export default function Home() {
       <div className="fixed inset-0 -z-10 noise-overlay">
         <div className="absolute inset-0" style={{ pointerEvents: "auto" }}>
           <BokehParticleGalaxy
-            background="#020208"
-            baseColor="#22d3ee"
-            accentColor="#a78bfa"
-            scale={60}
-            speed={50}
+            background="#000000"
+            baseColor="#c81b1c"
+            accentColor="#ffffff"
+            scale={70}
+            speed={40}
             advanced={{
               eye: 5, haze: 12, lens: 35, seed: 0, spin: 12, wind: 140, grain: 0,
               centerX: 50, centerY: 51, dotSize: 100, dustDim: 29, armNoise: 50,
