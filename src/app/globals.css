@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Originkit components — make sure Tailwind scans this directory */
+@source "../src/components/originkit";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

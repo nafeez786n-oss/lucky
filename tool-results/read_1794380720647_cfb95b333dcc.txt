@@ -1,0 +1,2002 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+     4→import dynamic from "next/dynamic";
+     5→import { io, type Socket } from "socket.io-client";
+     6→import { useSession, signOut } from "next-auth/react";
+     7→import { motion, AnimatePresence } from "framer-motion";
+     8→import {
+     9→  Shield,
+    10→  ShieldAlert,
+    11→  Loader2,
+    12→  Search,
+    13→  Download,
+    14→  Trash2,
+    15→  ExternalLink,
+    16→  Lock,
+    17→  Bug,
+    18→  Radar,
+    19→  Cpu,
+    20→  Globe,
+    21→  KeyRound,
+    22→  Fingerprint,
+    23→  FileWarning,
+    24→  Map,
+    25→  Database,
+    26→  Zap,
+    27→  Activity,
+    28→  ChevronRight,
+    29→  ChevronDown,
+    30→  Box,
+    31→  Crosshair,
+    32→  Layers,
+    33→  CircuitBoard,
+    34→  Wifi,
+    35→  Signal,
+    36→  Target,
+    37→  ScanLine,
+    38→  Brain,
+    39→  CheckCircle2,
+    40→  AlertTriangle,
+    41→  User as UserIcon,
+    42→  Mail,
+    43→  Calendar,
+    44→  LogOut,
+    45→  ShieldCheck,
+    46→  EyeOff,
+    47→  Server,
+    48→  FileCheck2,
+    49→  Wrench,
+    50→  ListChecks,
+    51→  RefreshCw,
+    52→  AlertCircle,
+    53→  type LucideIcon,
+    54→} from "lucide-react";
+    55→import { Button } from "@/components/ui/button";
+    56→import { Input } from "@/components/ui/input";
+    57→import { Badge } from "@/components/ui/badge";
+    58→import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+    59→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    60→import {
+    61→  Collapsible,
+    62→  CollapsibleTrigger,
+    63→  CollapsibleContent,
+    64→} from "@/components/ui/collapsible";
+    65→import { toast } from "sonner";
+    66→import type { ScanResult, Finding, LeakCategory } from "@/lib/leak-scanner";
+    67→import { SEVERITY_META, CATEGORY_META, severityCount } from "@/lib/leak-ui";
+    68→import { AuthButton } from "@/components/auth/auth-button";
+    69→import { ErrorBoundary } from "@/components/error-boundary";
+    70→
+    71→const LeakGuardScene = dynamic(
+    72→  () => import("@/components/three/leak-guard-scene").then((m) => m.LeakGuardScene),
+    73→  {
+    74→    ssr: false,
+    75→    loading: () => (
+    76→      <div className="h-full flex items-center justify-center text-cyan-400/70 font-mono text-xs">
+    77→        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+    78→        Initializing scanner…
+    79→      </div>
+    80→    ),
+    81→  }
+    82→);
+    83→
+    84→const BackgroundScene = dynamic(
+    85→  () => import("@/components/three/background-scene").then((m) => m.BackgroundScene),
+    86→  { ssr: false }
+    87→);
+    88→
+    89→// OriginKit Bokeh Particle Galaxy — fetched via originkit CLI (cmp_live_... key)
+    90→const BokehParticleGalaxy = dynamic(
+    91→  () => import("@/components/originkit/ui/bokeh-particle-galaxy"),
+    92→  { ssr: false }
+    93→);
+    94→
+    95→// ============================================================================
+    96→// 6-stage premium scanning experience
+    97→// ============================================================================
+    98→const SCAN_STAGES: { id: string; label: string; icon: LucideIcon; accent: "cyan" | "violet" | "white" }[] = [
+    99→  { id: "acquire",  label: "TARGET ACQUIRED", icon: Target,      accent: "white" },
+   100→  { id: "fetch",    label: "FETCHING",        icon: Globe,       accent: "cyan" },
+   101→  { id: "analyze",  label: "ANALYZING",       icon: ScanLine,     accent: "cyan" },
+   102→  { id: "pattern",  label: "PATTERN MATCH",  icon: Cpu,          accent: "violet" },
+   103→  { id: "fingerprint", label: "AI FINGERPRINT", icon: Brain,     accent: "violet" },
+   104→  { id: "complete", label: "COMPLETE",        icon: CheckCircle2, accent: "cyan" },
+   105→];
+   106→
+   107→// ============================================================================
+   108→// Detection matrix cards — interactive with hover glow + status indicator
+   109→// ============================================================================
+   110→const DETECTION_CARDS: {
+   111→  id: string;
+   112→  title: string;
+   113→  description: string;
+   114→  icon: LucideIcon;
+   115→  accent: "cyan" | "violet";
+   116→  examples: string[];
+   117→  coverage: string;
+   118→}[] = [
+   119→  {
+   120→    id: "api_keys",
+   121→    title: "API Keys",
+   122→    description: "Cloud + SaaS credentials hardcoded into client bundles.",
+   123→    icon: KeyRound,
+   124→    accent: "cyan",
+   125→    examples: ["AWS AKIA*", "OpenAI sk-", "Anthropic sk-ant-", "Google AI AIza*", "GitHub ghp_", "Stripe sk_live_", "Slack xox*"],
+   126→    coverage: "12+ patterns",
+   127→  },
+   128→  {
+   129→    id: "secrets",
+   130→    title: "Hardcoded Secrets",
+   131→    description: "JWTs, Bearer tokens, PEM private keys, DB connection strings.",
+   132→    icon: Lock,
+   133→    accent: "violet",
+   134→    examples: ["JWT eyJ*", "Bearer xyz", "-----BEGIN PRIVATE KEY-----", "mongodb://user:pass@"],
+   135→    coverage: "8+ patterns",
+   136→  },
+   137→  {
+   138→    id: "ai_fingerprint",
+   139→    title: "AI Fingerprints",
+   140→    description: "Meta tags + comments revealing the AI generator used.",
+   141→    icon: Fingerprint,
+   142→    accent: "cyan",
+   143→    examples: ["v0.dev", "lovable.dev", "bolt.new", "Cursor", "Claude", "ChatGPT"],
+   144→    coverage: "6 generators",
+   145→  },
+   146→  {
+   147→    id: "exposed_files",
+   148→    title: "Exposed Files",
+   149→    description: "Well-known leak paths returning 200 OK to anyone.",
+   150→    icon: FileWarning,
+   151→    accent: "violet",
+   152→    examples: ["/.env", "/.git/config", "/.git/HEAD", "/.DS_Store", "/package.json", "/actuator/health"],
+   153→    coverage: "12 paths probed",
+   154→  },
+   155→  {
+   156→    id: "source_maps",
+   157→    title: "Source Maps",
+   158→    description: ".map files exposing original pre-minification source code.",
+   159→    icon: Map,
+   160→    accent: "cyan",
+   161→    examples: ["*.js.map", "//# sourceMappingURL=", "inline annotations"],
+   162→    coverage: "Per-script probe",
+   163→  },
+   164→  {
+   165→    id: "pii",
+   166→    title: "Personal Data",
+   167→    description: "Hardcoded emails and phone numbers in client-visible code.",
+   168→    icon: Database,
+   169→    accent: "violet",
+   170→    examples: ["dev@example.com", "+1 (555) 555-5555"],
+   171→    coverage: "Email + phone regex",
+   172→  },
+   173→  {
+   174→    id: "debug_routes",
+   175→    title: "Debug Routes",
+   176→    description: "Dev-mode artifacts suggesting production ships a dev build.",
+   177→    icon: Bug,
+   178→    accent: "cyan",
+   179→    examples: ["console.log spam", "Next.js __nextjs_original-stack-frame", "Vite /@vite/", "/@react-refresh"],
+   180→    coverage: "4 patterns",
+   181→  },
+   182→  {
+   183→    id: "misconfig",
+   184→    title: "Misconfigurations",
+   185→    description: "process.env.* leaking into the client bundle from bad bundler setup.",
+   186→    icon: Cpu,
+   187→    accent: "violet",
+   188→    examples: ["process.env.DATABASE_URL", "process.env.JWT_SECRET"],
+   189→    coverage: "Bundler leak check",
+   190→  },
+   191→];
+   192→
+   193→// ============================================================================
+   194→// Main page component
+   195→// ============================================================================
+   196→export default function Home() {
+   197→  const { data: session } = useSession();
+   198→  const [url, setUrl] = useState("");
+   199→  const [scanning, setScanning] = useState(false);
+   200→  const [stage, setStage] = useState(0);
+   201→  const [result, setResult] = useState<ScanResult | null>(null);
+   202→  const [sessionHistory, setSessionHistory] = useState<ScanResult[]>([]);
+   203→  const [savedScans, setSavedScans] = useState<ScanResult[]>([]);
+   204→  const [loadingSaved, setLoadingSaved] = useState(false);
+   205→  const [clock, setClock] = useState("");
+   206→  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+   207→
+   208→  // Track the latest session in a ref so callbacks/handlers that are set up
+   209→  // once (on mount) can always access the current session without stale closures.
+   210→  const sessionRef = useRef(session);
+   211→  useEffect(() => {
+   212→    sessionRef.current = session;
+   213→  }, [session]);
+   214→
+   215→  // Live LOCAL clock (uses the viewer's own timezone)
+   216→  useEffect(() => {
+   217→    const tick = () => {
+   218→      const d = new Date();
+   219→      const hh = String(d.getHours()).padStart(2, "0");
+   220→      const mm = String(d.getMinutes()).padStart(2, "0");
+   221→      const ss = String(d.getSeconds()).padStart(2, "0");
+   222→      setClock(`${hh}:${mm}:${ss}`);
+   223→    };
+   224→    tick();
+   225→    const id = setInterval(tick, 1000);
+   226→    return () => clearInterval(id);
+   227→  }, []);
+   228→
+   229→  // -------- Smooth scroll to section + view transition --------
+   230→  // Clicking a sidebar nav item triggers a brief "wipe" transition
+   231→  // overlay + smooth-scrolls to the target section. The destination
+   232→  // section's `whileInView` animation then fires as it enters viewport.
+   233→  const [viewTransitioning, setViewTransitioning] = useState(false);
+   234→  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   235→  const scrollToSection = useCallback((id: string) => {
+   236→    // Trigger the wipe overlay
+   237→    setViewTransitioning(true);
+   238→    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+   239→    // Smooth-scroll to the target
+   240→    setTimeout(() => {
+   241→      if (id === "#") {
+   242→        window.scrollTo({ top: 0, behavior: "smooth" });
+   243→      } else {
+   244→        const el = document.querySelector(id);
+   245→        if (el) {
+   246→          el.scrollIntoView({ behavior: "smooth", block: "start" });
+   247→        }
+   248→      }
+   249→    }, 30); // small delay so the wipe overlay starts rendering first
+   250→    // Hide the wipe overlay after the transition completes
+   251→    transitionTimerRef.current = setTimeout(() => setViewTransitioning(false), 750);
+   252→  }, []);
+   253→
+   254→  // -------- Track active section for sidebar highlight --------
+   255→  const [activeSection, setActiveSection] = useState<string>("#");
+   256→  useEffect(() => {
+   257→    const sections = ["#target", "#verification", "#detection", "#report", "#history", "#profile"]
+   258→      .map((id) => document.querySelector(id))
+   259→      .filter(Boolean) as Element[];
+   260→    if (sections.length === 0) return;
+   261→    const observer = new IntersectionObserver(
+   262→      (entries) => {
+   263→        const visible = entries
+   264→          .filter((e) => e.isIntersecting)
+   265→          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+   266→        if (visible.length > 0) {
+   267→          const id = `#${visible[0].target.id}`;
+   268→          setActiveSection(id);
+   269→        }
+   270→      },
+   271→      { rootMargin: "-20% 0px -50% 0px", threshold: [0.1, 0.25, 0.5] }
+   272→    );
+   273→    sections.forEach((s) => observer.observe(s));
+   274→    return () => observer.disconnect();
+   275→  }, [result, sessionHistory, savedScans]);
+   276→
+   277→  const refreshSaved = useCallback(async () => {
+   278→    // Use sessionRef.current instead of session to avoid stale closure
+   279→    // (this callback is captured by the socket event handlers which are
+   280→    // set up once on mount, so the session value would be null from the
+   281→    // initial render if we used the closure variable directly)
+   282→    if (!sessionRef.current?.user) {
+   283→      setSavedScans([]);
+   284→      return;
+   285→    }
+   286→    setLoadingSaved(true);
+   287→    try {
+   288→      const res = await fetch("/api/scans", { method: "GET", cache: "no-store" });
+   289→      const data = await res.json();
+   290→      if (data.ok) setSavedScans(data.scans);
+   291→    } catch {
+   292→      // ignore
+   293→    } finally {
+   294→      setLoadingSaved(false);
+   295→    }
+   296→  }, []);
+   297→
+   298→  useEffect(() => {
+   299→    refreshSaved();
+   300→  }, [refreshSaved, session]);
+   301→
+   302→  // -------- WebSocket connection to the scanner service (port 3030) --------
+   303→  // Real-time scan progress: stage events fire as the scanner actually
+   304→  // completes each step (replaces fake stage timing). Findings appear
+   305→  // one-by-one as they're discovered. The scanner service has NO DB
+   306→  // access — it just runs the scan and emits events. The frontend
+   307→  // POSTs the final result to /api/scans/save for persistence.
+   308→  const socketRef = useRef<Socket | null>(null);
+   309→  // sessionRef is defined above (near the state declarations) to avoid ordering issues
+   310→  const [socketConnected, setSocketConnected] = useState(false);
+   311→  const liveFindingsRef = useRef<Finding[]>([]);
+   312→
+   313→  // Map real backend stage names → existing 6-stage UI index
+   314→  const stageToIndex: Record<string, number> = {
+   315→    acquire: 0,        // TARGET ACQUIRED
+   316→    fetch_html: 1,     // FETCHING
+   317→    analyze_html: 2,   // ANALYZING
+   318→    fetch_scripts: 3,  // PATTERN MATCH
+   319→    pattern_match: 3,  // PATTERN MATCH (still)
+   320→    ai_fingerprint: 4, // AI FINGERPRINT
+   321→    probe_paths: 4,    // AI FINGERPRINT (still)
+   322→    complete: 5,       // COMPLETE
+   323→  };
+   324→
+   325→  useEffect(() => {
+   326→    // Connect to the scanner-service on port 3030 via the Caddy gateway.
+   327→    // Path is "/" (required) and XTransformPort=3030 tells Caddy to forward.
+   328→    // Use default transport negotiation (polling → WebSocket upgrade) for
+   329→    // maximum proxy/reverse-proxy compatibility.
+   330→    const socket = io("/?XTransformPort=3030", {
+   331→      reconnection: true,
+   332→      reconnectionAttempts: 5,
+   333→      reconnectionDelay: 1000,
+   334→    });
+   335→    socketRef.current = socket;
+   336→
+   337→    socket.on("connect", () => {
+   338→      setSocketConnected(true);
+   339→      console.log("[scanner] connected to scanner-service");
+   340→    });
+   341→    socket.on("disconnect", () => {
+   342→      setSocketConnected(false);
+   343→      console.log("[scanner] disconnected from scanner-service");
+   344→    });
+   345→    socket.on("connect_error", (err: any) => {
+   346→      setSocketConnected(false);
+   347→      console.warn("[scanner] connect error:", err.message);
+   348→    });
+   349→
+   350→    // Real-time stage updates from the scanner service
+   351→    socket.on("scan:stage", (event: { stage: string; detail: string; findingsCount: number }) => {
+   352→      const idx = stageToIndex[event.stage] ?? 0;
+   353→      setStage(idx);
+   354→    });
+   355→
+   356→    // Live findings (as they're discovered — incrementally builds the result)
+   357→    socket.on("scan:finding", (event: { finding: Finding }) => {
+   358→      liveFindingsRef.current.push(event.finding);
+   359→    });
+   360→
+   361→    // Final result from the scanner service
+   362→    socket.on("scan:complete", async (event: { result: ScanResult }) => {
+   363→      const data = event.result;
+   364→      setStage(SCAN_STAGES.length - 1); // COMPLETE
+   365→      setResult(data);
+   366→      setScanning(false);
+   367→      liveFindingsRef.current = [];
+   368→
+   369→      if (!data.ok && data.errors.length > 0) {
+   370→        toast.warning(data.errors[0]);
+   371→      } else {
+   372→        const n = data.findings.length;
+   373→        if (n === 0) toast.success("Scan complete — site is clean");
+   374→        else toast.success(`Scan complete — ${n} finding${n === 1 ? "" : "s"} exposed`);
+   375→      }
+   376→      setSessionHistory((h) => [data, ...h].slice(0, 8));
+   377→
+   378→      // Persist the result if the user is authenticated (use ref to avoid stale closure)
+   379→      if (sessionRef.current?.user) {
+   380→        try {
+   381→          await fetch("/api/scans/save", {
+   382→            method: "POST",
+   383→            headers: { "Content-Type": "application/json" },
+   384→            body: JSON.stringify(data),
+   385→          });
+   386→          refreshSaved();
+   387→        } catch (err) {
+   388→          console.warn("[scanner] failed to persist scan:", err);
+   389→        }
+   390→      }
+   391→    });
+   392→
+   393→    socket.on("scan:error", (event: { error: string }) => {
+   394→      setScanning(false);
+   395→      toast.error(`Scan failed: ${event.error}`);
+   396→    });
+   397→
+   398→    return () => {
+   399→      socket.disconnect();
+   400→      socketRef.current = null;
+   401→    };
+   402→  }, []);
+   403→
+   404→  async function runScan(e: React.FormEvent) {
+   405→    e.preventDefault();
+   406→    if (scanning) return;
+   407→    const target = url.trim();
+   408→    if (!target) {
+   409→      toast.error("Enter a URL first");
+   410→      return;
+   411→    }
+   412→    setScanning(true);
+   413→    setResult(null);
+   414→    setStage(0);
+   415→    liveFindingsRef.current = [];
+   416→
+   417→    // If the WebSocket scanner-service is connected, use it (real-time progress).
+   418→    // Otherwise, fall back to the legacy fetch POST to /api/scan.
+   419→    if (socketRef.current?.connected) {
+   420→      socketRef.current.emit("scan:start", { url: target });
+   421→      return;
+   422→    }
+   423→
+   424→    // Fallback: legacy fetch-based scan (no real-time progress)
+   425→    const stageTimers: ReturnType<typeof setTimeout>[] = [];
+   426→    const intervals = [0, 2200, 6500, 11000, 15000, 19000];
+   427→    for (let i = 1; i < SCAN_STAGES.length; i++) {
+   428→      stageTimers.push(setTimeout(() => setStage(i), intervals[i]));
+   429→    }
+   430→
+   431→    try {
+   432→      const res = await fetch("/api/scan", {
+   433→        method: "POST",
+   434→        headers: { "Content-Type": "application/json" },
+   435→        body: JSON.stringify({ url: target }),
+   436→      });
+   437→      const data: ScanResult = await res.json();
+   438→      for (const t of stageTimers) clearTimeout(t);
+   439→      setStage(SCAN_STAGES.length - 1); // COMPLETE
+   440→
+   441→      setResult(data);
+   442→      if (!data.ok && data.errors.length > 0) {
+   443→        toast.warning(data.errors[0]);
+   444→      } else {
+   445→        const n = data.findings.length;
+   446→        if (n === 0) toast.success("Scan complete — site is clean");
+   447→        else toast.success(`Scan complete — ${n} finding${n === 1 ? "" : "s"} exposed`);
+   448→      }
+   449→      setSessionHistory((h) => [data, ...h].slice(0, 8));
+   450→      if (session?.user) refreshSaved();
+   451→    } catch (err) {
+   452→      for (const t of stageTimers) clearTimeout(t);
+   453→      const msg = err instanceof Error ? err.message : "Network error";
+   454→      toast.error(`Scan failed: ${msg}`);
+   455→    } finally {
+   456→      setScanning(false);
+   457→    }
+   458→  }
+   459→
+   460→  function exportJson() {
+   461→    if (!result) return;
+   462→    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+   463→    const url2 = URL.createObjectURL(blob);
+   464→    const a = document.createElement("a");
+   465→    const safe = (result.targetUrl || "scan").replace(/[^a-z0-9]/gi, "_").slice(0, 60);
+   466→    a.href = url2;
+   467→    a.download = `leakguard-report-${safe}.json`;
+   468→    a.click();
+   469→    URL.revokeObjectURL(url2);
+   470→    toast.success("Report exported");
+   471→  }
+   472→
+   473→  function clearResults() {
+   474→    setResult(null);
+   475→    setStage(0);
+   476→  }
+   477→
+   478→  async function clearSavedScans() {
+   479→    try {
+   480→      const res = await fetch("/api/scans", { method: "DELETE" });
+   481→      const data = await res.json();
+   482→      if (data.ok) {
+   483→        setSavedScans([]);
+   484→        toast.success("Saved scans cleared");
+   485→      }
+   486→    } catch {
+   487→      toast.error("Failed to clear saved scans");
+   488→    }
+   489→  }
+   490→
+   491→  // -------- Layout: sidebar (desktop/tablet) + main, top bar (mobile) --------
+   492→  return (
+   493→    <div className="min-h-screen flex bg-transparent text-foreground relative">
+   494→      {/* OriginKit Bokeh Particle Galaxy — full-screen WebGL2 background */}
+   495→      <div className="fixed inset-0 -z-10 noise-overlay">
+   496→        <div className="absolute inset-0" style={{ pointerEvents: "auto" }}>
+   497→          <BokehParticleGalaxy
+   498→            background="#000000"
+   499→            baseColor="#c81b1c"
+   500→            accentColor="#ffffff"
+   501→            scale={70}
+   502→            speed={40}
+   503→            advanced={{
+   504→              eye: 5, haze: 12, lens: 35, seed: 0, spin: 12, wind: 140, grain: 0,
+   505→              centerX: 50, centerY: 51, dotSize: 100, dustDim: 29, armNoise: 50,
+   506→              dotDrift: 10, dustSize: 100, parallax: 4, vignette: 0,
+   507→              bokehSize: 100, bokehSoft: 35, dotBright: 85, dustDrift: 30,
+   508→              twinkleHz: 20, bokehCycle: 1400, dotDensity: 100, dustBright: 62,
+   509→              armContrast: 60, bokehAspect: 160, bokehGrowth: 325,
+   510→              dustDensity: 100, bokehOpacity: 100,
+   511→            }}
+   512→          />
+   513→        </div>
+   514→        <div className="absolute inset-0 scanline-overlay opacity-20 pointer-events-none" />
+   515→      </div>
+   516→
+   517→      {/* View-transition wipe overlay + particle burst (fires when a sidebar nav item is clicked) */}
+   518→      <AnimatePresence>
+   519→        {viewTransitioning && (
+   520→          <>
+   521→            {/* Diagonal gradient wipe — cyan → violet → transparent, sweeping left → right */}
+   522→            <motion.div
+   523→              key="view-wipe"
+   524→              initial={{ x: "-100%" }}
+   525→              animate={{ x: "100%" }}
+   526→              exit={{ x: "100%", opacity: 0 }}
+   527→              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+   528→              className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
+   529→            >
+   530→              <div
+   531→                className="absolute inset-0"
+   532→                style={{
+   533→                  background:
+   534→                    "linear-gradient(110deg, transparent 0%, rgba(34,211,238,0.18) 30%, rgba(167,139,250,0.22) 50%, rgba(34,211,238,0.18) 70%, transparent 100%)",
+   535→                }}
+   536→              />
+   537→              {/* Thin bright leading edge */}
+   538→              <div
+   539→                className="absolute top-0 bottom-0 w-px bg-white/80 shadow-[0_0_20px_4px_rgba(34,211,238,0.6)]"
+   540→                style={{ left: "50%" }}
+   541→              />
+   542→              {/* Top + bottom edges */}
+   543→              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+   544→              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-300/80 to-transparent" />
+   545→            </motion.div>
+   546→
+   547→            {/* Particle burst — 16 particles radiating from screen center */}
+   548→            <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center overflow-hidden">
+   549→              {Array.from({ length: 16 }).map((_, i) => {
+   550→                const angle = (i / 16) * Math.PI * 2;
+   551→                const distance = 180 + (i % 4) * 80; // varied distances for depth
+   552→                const dx = Math.cos(angle) * distance;
+   553→                const dy = Math.sin(angle) * distance;
+   554→                const color = i % 2 === 0 ? "#22d3ee" : "#a78bfa";
+   555→                const size = 4 + (i % 3) * 2;
+   556→                return (
+   557→                  <motion.div
+   558→                    key={i}
+   559→                    initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+   560→                    animate={{ x: dx, y: dy, opacity: 0, scale: 0.3 }}
+   561→                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+   562→                    className="rounded-full"
+   563→                    style={{
+   564→                      width: size,
+   565→                      height: size,
+   566→                      background: color,
+   567→                      boxShadow: `0 0 ${size * 2}px ${color}`,
+   568→                    }}
+   569→                  />
+   570→                );
+   571→              })}
+   572→              {/* Center flash */}
+   573→              <motion.div
+   574→                initial={{ scale: 0, opacity: 0.8 }}
+   575→                animate={{ scale: 4, opacity: 0 }}
+   576→                transition={{ duration: 0.5, ease: "easeOut" }}
+   577→                className="absolute w-8 h-8 rounded-full"
+   578→                style={{
+   579→                  background:
+   580→                    "radial-gradient(circle, rgba(255,255,255,0.9), rgba(34,211,238,0.4) 50%, transparent 70%)",
+   581→                }}
+   582→              />
+   583→            </div>
+   584→          </>
+   585→        )}
+   586→      </AnimatePresence>
+   587→
+   588→      {/* ============ SIDEBAR (desktop + tablet) ============ */}
+   589→      <aside className="hidden md:flex w-[72px] lg:w-[280px] shrink-0 sticky top-0 h-screen flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl">
+   590→        <SidebarContent
+   591→          clock={clock}
+   592→          session={session}
+   593→          activeSection={activeSection}
+   594→          onNavClick={(id) => {
+   595→            scrollToSection(id);
+   596→            setMobileMenuOpen(false);
+   597→          }}
+   598→        />
+   599→      </aside>
+   600→
+   601→      {/* Mobile top bar */}
+   602→      <div className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-black/70 backdrop-blur-xl">
+   603→        <div className="flex items-center gap-2">
+   604→          <div className="w-8 h-8 rounded-lg border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center">
+   605→            <ShieldAlert className="w-4 h-4 text-cyan-300" />
+   606→          </div>
+   607→          <h1 className="text-sm font-semibold tracking-tight">
+   608→            <span className="text-white">LEAK</span>
+   609→            <span className="text-cyan-300">GUARD</span>
+   610→          </h1>
+   611→        </div>
+   612→        <button
+   613→          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+   614→          className="w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/5"
+   615→        >
+   616→          <ChevronDown className={`w-4 h-4 transition ${mobileMenuOpen ? "rotate-180" : ""}`} />
+   617→        </button>
+   618→      </div>
+   619→
+   620→      {/* Mobile dropdown menu */}
+   621→      <AnimatePresence>
+   622→        {mobileMenuOpen && (
+   623→          <motion.div
+   624→            initial={{ opacity: 0, height: 0 }}
+   625→            animate={{ opacity: 1, height: "auto" }}
+   626→            exit={{ opacity: 0, height: 0 }}
+   627→            className="md:hidden fixed top-[57px] left-0 right-0 z-20 border-b border-white/5 bg-black/90 backdrop-blur-xl overflow-hidden"
+   628→          >
+   629→            <div className="p-4 space-y-3">
+   630→              <div className="flex items-center justify-between text-[10px] font-mono text-white/70">
+   631→                <span>UTC</span>
+   632→                <span className="tabular-nums text-white/70">{clock}</span>
+   633→              </div>
+   634→              <AuthButton />
+   635→            </div>
+   636→          </motion.div>
+   637→        )}
+   638→      </AnimatePresence>
+   639→
+   640→      {/* ============ MAIN CONTENT ============ */}
+   641→      {/* During a view transition, the main content zooms out (scale 0.97),
+   642→          blurs (8px), and fades (0.55 opacity). When the transition ends,
+   643→          it zooms back in + clears + re-opaques. Cinematic "page change" feel. */}
+   644→      <motion.main
+   645→        className="flex-1 min-w-0 relative origin-top"
+   646→        animate={{
+   647→          opacity: viewTransitioning ? 0.55 : 1,
+   648→          scale: viewTransitioning ? 0.97 : 1,
+   649→          filter: viewTransitioning ? "blur(8px)" : "blur(0px)",
+   650→        }}
+   651→        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+   652→      >
+   653→        {/* Top status strip (desktop only) */}
+   654→        <div className="hidden md:block border-b border-white/5 bg-black/30 backdrop-blur-md">
+   655→          <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-2.5 flex items-center justify-between gap-3 text-[10px] font-mono">
+   656→            <div className="flex items-center gap-5 text-white/70">
+   657→              <span className="flex items-center gap-1.5">
+   658→                <Crosshair className="w-3 h-3" />
+   659→                TARGET: <span className="text-white/80">{result?.targetUrl ?? "—"}</span>
+   660→              </span>
+   661→              <span className="flex items-center gap-1.5">
+   662→                <Layers className="w-3 h-3" />
+   663→                FINDINGS: <span className="text-white/80 tabular-nums">{result?.findings.length ?? 0}</span>
+   664→              </span>
+   665→              <span className="hidden lg:flex items-center gap-1.5">
+   666→                <Signal className="w-3 h-3" />
+   667→                STATUS: <span className="text-white/80">{scanning ? "SCANNING" : result ? "DONE" : "IDLE"}</span>
+   668→              </span>
+   669→            </div>
+   670→            <div className="text-white/70">
+   671→              {session?.user ? `OP: ${session.user.email}` : "GUEST MODE"}
+   672→            </div>
+   673→          </div>
+   674→        </div>
+   675→
+   676→        <div className="pl-6 md:pl-8 lg:pl-10 xl:pl-12 pr-6 md:pr-10 lg:pr-16 xl:pr-20 py-10 md:py-16 pt-20 md:pt-16 w-full">
+   677→          {/* ===== HERO ===== */}
+   678→          <motion.section
+   679→            id="target"
+   680→            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+   681→            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+   682→            viewport={{ once: true, amount: 0.1 }}
+   683→            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   684→            className="mb-14 md:mb-20 scroll-mt-24"
+   685→          >
+   686→            <motion.div
+   687→              initial={{ opacity: 0, y: 12 }}
+   688→              animate={{ opacity: 1, y: 0 }}
+   689→              transition={{ duration: 0.5 }}
+   690→              className="text-center mb-8"
+   691→            >
+   692→              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs font-mono mb-8 tracking-wider">
+   693→                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+   694→                BOUNDED · NO LOOPS · NO POLLING
+   695→              </div>
+   696→
+   697→              {/* Quotation — Playfair Display italic + warm gold→coral→magenta gradient.
+   698→                  Sits ABOVE the main headline. Uses a different font family (serif)
+   699→                  and a unique color palette (warm) to contrast with the cool
+   700→                  cyan/violet of the rest of the UI. */}
+   701→              <motion.div
+   702→                initial={{ opacity: 0, y: -8 }}
+   703→                animate={{ opacity: 1, y: 0 }}
+   704→                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+   705→                className="mb-6 flex items-center justify-center gap-4"
+   706→              >
+   707→                {/* Left decorative line */}
+   708→                <span
+   709→                  className="hidden sm:block h-px w-16"
+   710→                  style={{
+   711→                    background:
+   712→                      "linear-gradient(to right, transparent, #fcd34d 50%, #fb7185)",
+   713→                  }}
+   714→                />
+   715→                <p
+   716→                  className="font-playfair text-gradient-quote text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-medium tracking-wide leading-snug"
+   717→                  style={{ textShadow: "0 0 30px rgba(251, 113, 133, 0.25)" }}
+   718→                >
+   719→                  “Beyond The Limits”
+   720→                </p>
+   721→                {/* Right decorative line */}
+   722→                <span
+   723→                  className="hidden sm:block h-px w-16"
+   724→                  style={{
+   725→                    background:
+   726→                      "linear-gradient(to left, transparent, #c084fc 50%, #f472b6)",
+   727→                  }}
+   728→                />
+   729→              </motion.div>
+   730→
+   731→              <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl font-bold tracking-tight leading-[1.02] mb-6">
+   732→                <span className="text-white">Find every exposed</span>
+   733→                <br />
+   734→                <span className="text-gradient-cyan-violet">secret.</span>
+   735→                <span className="text-white/80"> Before attackers do.</span>
+   736→              </h1>
+   737→              <p className="text-base md:text-lg text-white/80 max-w-2xl mx-auto leading-relaxed">
+   738→                LeakGuard fetches the target, follows up to 20 scripts, probes 12 leak paths, and
+   739→                surfaces API keys, source maps, and AI fingerprints — in a single bounded request.
+   740→              </p>
+   741→            </motion.div>
+   742→
+   743→            {/* URL input — premium glass */}
+   744→            <motion.form
+   745→              onSubmit={runScan}
+   746→              initial={{ opacity: 0, y: 12 }}
+   747→              animate={{ opacity: 1, y: 0 }}
+   748→              transition={{ duration: 0.5, delay: 0.1 }}
+   749→              className="glass-panel glass-panel-hover rounded-2xl p-2.5 flex flex-col sm:flex-row gap-2.5 max-w-3xl mx-auto"
+   750→            >
+   751→              <div className="relative flex-1">
+   752→                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/70" />
+   753→                <Input
+   754→                  type="text"
+   755→                  value={url}
+   756→                  onChange={(e) => setUrl(e.target.value)}
+   757→                  placeholder="https://example.com"
+   758→                  className="pl-11 h-14 bg-transparent border-0 focus-visible:ring-0 font-mono text-base placeholder:text-white/60"
+   759→                  disabled={scanning}
+   760→                  autoComplete="off"
+   761→                  spellCheck={false}
+   762→                />
+   763→              </div>
+   764→              <Button
+   765→                type="submit"
+   766→                disabled={scanning}
+   767→                className="h-14 px-8 bg-white hover:bg-white/90 text-black font-semibold tracking-tight shadow-[0_0_30px_-8px_rgba(255,255,255,0.4)]"
+   768→              >
+   769→                {scanning ? (
+   770→                  <>
+   771→                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+   772→                    Scanning
+   773→                  </>
+   774→                ) : (
+   775→                  <>
+   776→                    <Shield className="w-4 h-4 mr-2" />
+   777→                    Execute Scan
+   778→                  </>
+   779→                )}
+   780→              </Button>
+   781→            </motion.form>
+   782→
+   783→            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono text-white/70">
+   784→              <span className="text-white/60">try:</span>
+   785→              {["https://httpbin.org", "https://example.com"].map((t) => (
+   786→                <button
+   787→                  key={t}
+   788→                  type="button"
+   789→                  onClick={() => setUrl(t)}
+   790→                  disabled={scanning}
+   791→                  className="px-2.5 py-1 rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-cyan-300 hover:border-cyan-400/30 hover:bg-cyan-400/5 transition disabled:opacity-40"
+   792→                >
+   793→                  {t}
+   794→                </button>
+   795→              ))}
+   796→            </div>
+   797→          </motion.section>
+   798→
+   799→          {/* ===== SCANNING (animated 6-stage) ===== */}
+   800→          <AnimatePresence>
+   801→            {scanning && (
+   802→              <motion.section
+   803→                initial={{ opacity: 0, height: 0 }}
+   804→                animate={{ opacity: 1, height: "auto" }}
+   805→                exit={{ opacity: 0, height: 0 }}
+   806→                className="mb-12 overflow-hidden"
+   807→              >
+   808→                <ScanProgress currentStage={stage} />
+   809→              </motion.section>
+   810→            )}
+   811→          </AnimatePresence>
+   812→
+   813→          {/* ===== 3D VERIFICATION CONSTELLATION (centerpiece) ===== */}
+   814→          <section id="verification" className="mb-14 md:mb-20 scroll-mt-24">
+   815→            <motion.div
+   816→              initial={{ opacity: 0, y: 12 }}
+   817→              whileInView={{ opacity: 1, y: 0 }}
+   818→              viewport={{ once: true }}
+   819→              transition={{ duration: 0.5 }}
+   820→              className="glass-panel rounded-2xl overflow-hidden"
+   821→            >
+   822→              <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+   823→                <div className="flex items-center gap-3">
+   824→                  <div className="w-9 h-9 rounded-lg border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center">
+   825→                    <Box className="w-4 h-4 text-cyan-300" />
+   826→                  </div>
+   827→                  <div>
+   828→                    <h3 className="text-sm font-semibold tracking-tight">Verification Constellation</h3>
+   829→                    <p className="text-[11px] text-white/70 font-mono">interactive · 3D · drag to orbit</p>
+   830→                  </div>
+   831→                </div>
+   832→                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/70">
+   833→                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+   834→                  LIVE
+   835→                </div>
+   836→              </div>
+   837→              <div className="relative h-[500px] sm:h-[600px] lg:h-[700px] xl:h-[800px]">
+   838→                <ErrorBoundary>
+   839→                  <LeakGuardScene />
+   840→                </ErrorBoundary>
+   841→              </div>
+   842→              <div className="px-6 py-3 border-t border-white/5 text-center">
+   843→                <p className="text-xs text-white/80 max-w-2xl mx-auto">
+   844→                  Each orbiting model represents one leak category LeakGuard probes — a key for API
+   845→                  keys, lock for secrets, fingerprint for AI-tool traces, document for exposed files,
+   846→                  pyramid for source maps, avatar for PII, bug for debug routes, gear for misconfig.
+   847→                </p>
+   848→              </div>
+   849→            </motion.div>
+   850→          </section>
+   851→
+   852→          {/* ===== DETECTION MATRIX — interactive cards ===== */}
+   853→          <motion.section
+   854→            id="detection"
+   855→            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+   856→            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+   857→            viewport={{ once: true, amount: 0.15 }}
+   858→            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   859→            className="mb-14 md:mb-20 scroll-mt-24"
+   860→          >
+   861→            <div className="flex items-end justify-between mb-6">
+   862→              <div>
+   863→                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">Detection Matrix</h2>
+   864→                <p className="text-sm md:text-base text-white/80 mt-2">
+   865→                  Eight leak categories scanned on every request.
+   866→                </p>
+   867→              </div>
+   868→              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/70">
+   869→                <Zap className="w-3 h-3" />
+   870→                {DETECTION_CARDS.length} CATEGORIES
+   871→              </div>
+   872→            </div>
+   873→
+   874→            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+   875→              {DETECTION_CARDS.map((card, i) => (
+   876→                <DetectionCard key={card.id} card={card} index={i} />
+   877→              ))}
+   878→            </div>
+   879→          </motion.section>
+   880→
+   881→          {/* ===== SCAN RESULTS ===== */}
+   882→          <motion.div
+   883→            id="report"
+   884→            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+   885→            animate={{ opacity: 1, y: 0, scale: 1 }}
+   886→            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   887→            className="scroll-mt-24 mb-14 md:mb-20"
+   888→          >
+   889→          {result && !scanning && (
+   890→            <ResultDashboard result={result} onExport={exportJson} onClear={clearResults} />
+   891→          )}
+   892→          </motion.div>
+   893→
+   894→          {/* ===== DEBUGGING SOLUTIONS (only when findings > 0) ===== */}
+   895→          {result && !scanning && result.findings.length > 0 && (
+   896→            <DebuggingSolutions
+   897→              result={result}
+   898→              onRescan={() => {
+   899→                // Re-use the URL from the last scan to trigger a new scan
+   900→                if (result.targetUrl) {
+   901→                  setUrl(result.targetUrl);
+   902→                  // Use a small delay so the state updates before runScan reads it
+   903→                  setTimeout(() => {
+   904→                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+   905→                    runScan(fakeEvent);
+   906→                  }, 30);
+   907→                }
+   908→              }}
+   909→            />
+   910→          )}
+   911→
+   912→          {/* ===== SAVED SCANS (logged in) ===== */}
+   913→          {session?.user && (
+   914→            <motion.section
+   915→              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+   916→              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+   917→              viewport={{ once: true, amount: 0.15 }}
+   918→              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   919→              className="mt-14"
+   920→            >
+   921→              <div className="flex items-center justify-between mb-4">
+   922→                <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
+   923→                  <Database className="w-4 h-4 text-cyan-300" />
+   924→                  Saved Scans <span className="text-white/70 text-sm">({savedScans.length})</span>
+   925→                </h3>
+   926→                {savedScans.length > 0 && (
+   927→                  <Button variant="ghost" size="sm" onClick={clearSavedScans} className="text-xs text-white/80 hover:text-red-400">
+   928→                    <Trash2 className="w-3 h-3 mr-1" />
+   929→                    Clear all
+   930→                  </Button>
+   931→                )}
+   932→              </div>
+   933→              {loadingSaved ? (
+   934→                <div className="text-xs font-mono text-white/70">Loading…</div>
+   935→              ) : savedScans.length === 0 ? (
+   936→                <div className="glass-panel rounded-xl p-5 text-center border-dashed border-white/10">
+   937→                  <p className="text-xs text-white/80">
+   938→                    No saved scans yet. Run a scan while logged in to persist it here.
+   939→                  </p>
+   940→                </div>
+   941→              ) : (
+   942→                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   943→                  {savedScans.slice(0, 9).map((s, i) => {
+   944→                    const counts = severityCount(s.findings);
+   945→                    return (
+   946→                      <HistoryCard key={i} scan={s} counts={counts} onClick={() => {
+   947→                        setResult(s);
+   948→                        setStage(SCAN_STAGES.length - 1);
+   949→                        window.scrollTo({ top: 0, behavior: "smooth" });
+   950→                      }} />
+   951→                    );
+   952→                  })}
+   953→                </div>
+   954→              )}
+   955→            </motion.section>
+   956→          )}
+   957→
+   958→          {/* ===== PROFILE (logged-in only — only the user can see their own PII) ===== */}
+   959→          {session?.user && (
+   960→            <ProfileSection
+   961→              email={session.user.email ?? ""}
+   962→              name={session.user.name ?? null}
+   963→            />
+   964→          )}
+   965→
+   966→          {/* ===== SESSION HISTORY ===== */}
+   967→          {sessionHistory.length > 0 && !scanning && (
+   968→            <motion.section
+   969→              id="history"
+   970→              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+   971→              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+   972→              viewport={{ once: true, amount: 0.15 }}
+   973→              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   974→              className="mt-14 scroll-mt-24"
+   975→            >
+   976→              <h3 className="text-base font-semibold tracking-tight flex items-center gap-2 mb-4">
+   977→                <Activity className="w-4 h-4 text-violet-300" />
+   978→                Session History <span className="text-white/70 text-sm">({sessionHistory.length})</span>
+   979→              </h3>
+   980→              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+   981→                {sessionHistory.map((h, i) => {
+   982→                  const counts = severityCount(h.findings);
+   983→                  return (
+   984→                    <HistoryCard key={i} scan={h} counts={counts} onClick={() => {
+   985→                      setResult(h);
+   986→                      setStage(SCAN_STAGES.length - 1);
+   987→                      window.scrollTo({ top: 0, behavior: "smooth" });
+   988→                    }} />
+   989→                  );
+   990→                })}
+   991→              </div>
+   992→            </motion.section>
+   993→          )}
+   994→        </div>
+   995→
+   996→        {/* Footer */}
+   997→        <footer className="border-t border-white/5 bg-black/30 backdrop-blur-md mt-12">
+   998→          <div className="px-6 py-4 flex flex-col sm:flex-row justify-between gap-2 text-[10px] font-mono text-white/70">
+   999→            <span className="flex items-center gap-1.5">
+  1000→              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+  1001→              LEAKGUARD · BOUNDED SCANNER · NO POLLING · NO INFINITE LOOPS
+  1002→            </span>
+  1003→            <span>
+  1004→              {session?.user ? `OPERATOR: ${session.user.email}` : "GUEST MODE — SCANS NOT PERSISTED"}
+  1005→            </span>
+  1006→          </div>
+  1007→        </footer>
+  1008→      </motion.main>
+  1009→    </div>
+  1010→  );
+  1011→}
+  1012→
+  1013→// ============================================================================
+  1014→// Sidebar content (shared by desktop + tablet)
+  1015→// ============================================================================
+  1016→function SidebarContent({
+  1017→  clock,
+  1018→  session,
+  1019→  activeSection,
+  1020→  onNavClick,
+  1021→}: {
+  1022→  clock: string;
+  1023→  session: any;
+  1024→  activeSection: string;
+  1025→  onNavClick: (id: string) => void;
+  1026→}) {
+  1027→  return (
+  1028→    <>
+  1029→      {/* Logo */}
+  1030→      <div className="px-4 lg:px-6 py-5 border-b border-white/5">
+  1031→        <div className="flex items-center gap-2.5">
+  1032→          <motion.div
+  1033→            initial={{ rotate: -8, opacity: 0 }}
+  1034→            animate={{ rotate: 0, opacity: 1 }}
+  1035→            transition={{ duration: 0.5 }}
+  1036→            className="w-10 h-10 rounded-xl border border-cyan-400/40 bg-cyan-400/5 flex items-center justify-center shrink-0"
+  1037→          >
+  1038→            <ShieldAlert className="w-5 h-5 text-cyan-300" />
+  1039→          </motion.div>
+  1040→          <div className="hidden lg:block">
+  1041→            <h1 className="text-base font-bold tracking-tight leading-none">
+  1042→              <span className="text-white">LEAK</span>
+  1043→              <span className="text-cyan-300">GUARD</span>
+  1044→            </h1>
+  1045→            <p className="text-[10px] text-white/70 mt-1.5 font-mono uppercase tracking-[0.2em]">
+  1046→              AI Security Scanner
+  1047→            </p>
+  1048→          </div>
+  1049→        </div>
+  1050→      </div>
+  1051→
+  1052→      {/* Status block */}
+  1053→      <div className="px-4 lg:px-6 py-4 border-b border-white/5 space-y-2">
+  1054→        <StatusRow icon={Wifi} label="SYS" value="ONLINE" color="text-cyan-300" pulse />
+  1055→        <StatusRow label="LOCAL" value={clock || "--:--:--"} mono />
+  1056→        <StatusRow icon={Signal} label="CHN" value="STABLE" />
+  1057→      </div>
+  1058→
+  1059→      {/* Nav */}
+  1060→      <nav className="px-3 lg:px-3 py-4 flex-1 space-y-0.5">
+  1061→        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/60 px-2 mb-2">
+  1062→          Sections
+  1063→        </p>
+  1064→        {NAV_ITEMS.map((n) => {
+  1065→          const active = activeSection === n.href;
+  1066→          return (
+  1067→            <button
+  1068→              key={n.label}
+  1069→              onClick={() => onNavClick(n.href)}
+  1070→              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-sm transition group relative ${
+  1071→                active
+  1072→                  ? "bg-cyan-400/10 text-cyan-300"
+  1073→                  : "text-white/60 hover:bg-white/5 hover:text-white"
+  1074→              }`}
+  1075→            >
+  1076→              {active && (
+  1077→                <motion.span
+  1078→                  layoutId="activeNav"
+  1079→                  className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-cyan-400"
+  1080→                />
+  1081→              )}
+  1082→              <n.icon className={`w-4 h-4 shrink-0 ${active ? "text-cyan-300" : "text-white/70 group-hover:text-cyan-300"}`} />
+  1083→              <span className="hidden lg:block flex-1 font-medium text-left">{n.label}</span>
+  1084→              <ChevronRight className={`hidden lg:block w-3 h-3 transition ${active ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
+  1085→            </button>
+  1086→          );
+  1087→        })}
+  1088→      </nav>
+  1089→
+  1090→      {/* Operator */}
+  1091→      <div className="px-3 lg:px-3 py-3 border-t border-white/5">
+  1092→        <p className="hidden lg:block text-[10px] font-mono uppercase tracking-[0.25em] text-white/60 px-2 mb-2">
+  1093→          Operator
+  1094→        </p>
+  1095→        <AuthButton />
+  1096→      </div>
+  1097→
+  1098→      {/* Footer */}
+  1099→      <div className="px-4 lg:px-6 py-3 border-t border-white/5 text-[10px] font-mono text-white/60 flex items-center justify-between">
+  1100→        <span className="flex items-center gap-1.5">
+  1101→          <CircuitBoard className="w-3 h-3" />
+  1102→          <span className="hidden lg:inline">v1.0</span>
+  1103→        </span>
+  1104→        <span className="hidden lg:inline">NO-LOOP</span>
+  1105→      </div>
+  1106→    </>
+  1107→  );
+  1108→}
+  1109→
+  1110→function StatusRow({
+  1111→  icon: Icon,
+  1112→  label,
+  1113→  value,
+  1114→  color = "text-white/70",
+  1115→  mono = false,
+  1116→  pulse = false,
+  1117→}: {
+  1118→  icon?: LucideIcon;
+  1119→  label: string;
+  1120→  value: string;
+  1121→  color?: string;
+  1122→  mono?: boolean;
+  1123→  pulse?: boolean;
+  1124→}) {
+  1125→  return (
+  1126→    <div className="flex items-center justify-between text-[11px] font-mono">
+  1127→      <span className="text-white/70 uppercase tracking-wider flex items-center gap-1.5">
+  1128→        {Icon && <Icon className="w-3 h-3" />}
+  1129→        <span className="hidden lg:inline">{label}</span>
+  1130→      </span>
+  1131→      <span className={`flex items-center gap-1.5 ${color} ${mono ? "tabular-nums" : ""}`}>
+  1132→        {pulse && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />}
+  1133→        {value}
+  1134→      </span>
+  1135→    </div>
+  1136→  );
+  1137→}
+  1138→
+  1139→// ============================================================================
+  1140→// Detection card — interactive with hover glow + severity/status indicator
+  1141→// ============================================================================
+  1142→function DetectionCard({
+  1143→  card,
+  1144→  index,
+  1145→}: {
+  1146→  card: typeof DETECTION_CARDS[number];
+  1147→  index: number;
+  1148→}) {
+  1149→  const accentColor = card.accent === "cyan" ? "#22d3ee" : "#a78bfa";
+  1150→  return (
+  1151→    <motion.div
+  1152→      initial={{ opacity: 0, y: 12 }}
+  1153→      whileInView={{ opacity: 1, y: 0 }}
+  1154→      viewport={{ once: true }}
+  1155→      transition={{ duration: 0.4, delay: index * 0.05 }}
+  1156→      className={`glass-panel glass-panel-hover rounded-xl p-4 cursor-default group ${card.accent === "violet" ? "glass-panel-violet" : ""}`}
+  1157→    >
+  1158→      <div className="flex items-start justify-between mb-3">
+  1159→        <div
+  1160→          className="w-10 h-10 rounded-lg border flex items-center justify-center transition group-hover:scale-110"
+  1161→          style={{
+  1162→            borderColor: `${accentColor}40`,
+  1163→            background: `${accentColor}10`,
+  1164→          }}
+  1165→        >
+  1166→          <card.icon className="w-4 h-4" style={{ color: accentColor }} />
+  1167→        </div>
+  1168→        <div className="text-[9px] font-mono text-white/60 px-2 py-0.5 rounded border border-white/10">
+  1169→          ACTIVE
+  1170→        </div>
+  1171→      </div>
+  1172→      <h4 className="text-sm font-semibold mb-1">{card.title}</h4>
+  1173→      <p className="text-xs text-white/80 leading-snug mb-3">{card.description}</p>
+  1174→      <div className="space-y-1.5">
+  1175→        {card.examples.slice(0, 3).map((ex) => (
+  1176→          <div key={ex} className="text-[10px] font-mono text-white/70 truncate flex items-center gap-1.5">
+  1177→            <span className="w-1 h-1 rounded-full" style={{ background: accentColor }} />
+  1178→            {ex}
+  1179→          </div>
+  1180→        ))}
+  1181→      </div>
+  1182→      <div className="mt-3 pt-3 border-t border-white/5 text-[10px] font-mono text-white/70 flex items-center justify-between">
+  1183→        <span>coverage</span>
+  1184→        <span style={{ color: accentColor }}>{card.coverage}</span>
+  1185→      </div>
+  1186→    </motion.div>
+  1187→  );
+  1188→}
+  1189→
+  1190→// ============================================================================
+  1191→// Scan progress — 6-stage animated
+  1192→// ============================================================================
+  1193→function ScanProgress({ currentStage }: { currentStage: number }) {
+  1194→  return (
+  1195→    <div className="glass-panel rounded-2xl p-6 md:p-8">
+  1196→      <div className="flex items-center gap-3 mb-6">
+  1197→        <div className="w-10 h-10 rounded-xl border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center animate-pulse-glow-cyan">
+  1198→          <Radar className="w-5 h-5 text-cyan-300" />
+  1199→        </div>
+  1200→        <div>
+  1201→          <h3 className="text-lg font-semibold tracking-tight">Scan in progress</h3>
+  1202→          <p className="text-xs text-white/80 font-mono">
+  1203→            Stage {Math.min(currentStage + 1, SCAN_STAGES.length)} of {SCAN_STAGES.length} · bounded execution
+  1204→          </p>
+  1205→        </div>
+  1206→      </div>
+  1207→
+  1208→      {/* Stage stepper */}
+  1209→      <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2">
+  1210→        {SCAN_STAGES.map((s, i) => {
+  1211→          const done = i < currentStage;
+  1212→          const active = i === currentStage;
+  1213→          const last = i === SCAN_STAGES.length - 1;
+  1214→          const Icon = s.icon;
+  1215→          const accentColor = s.accent === "cyan" ? "#22d3ee" : s.accent === "violet" ? "#a78bfa" : "#ffffff";
+  1216→          return (
+  1217→            <div key={s.id} className="flex items-center flex-1 min-w-0">
+  1218→              <div className="flex flex-col items-center gap-2 min-w-0 flex-1">
+  1219→                <motion.div
+  1220→                  initial={false}
+  1221→                  animate={{
+  1222→                    scale: active ? 1.15 : 1,
+  1223→                    opacity: done || active ? 1 : 0.4,
+  1224→                  }}
+  1225→                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl border flex items-center justify-center transition relative"
+  1226→                  style={{
+  1227→                    borderColor: done || active ? `${accentColor}80` : "rgba(255,255,255,0.1)",
+  1228→                    background: done || active ? `${accentColor}15` : "transparent",
+  1229→                    boxShadow: active ? `0 0 30px -6px ${accentColor}80` : "none",
+  1230→                  }}
+  1231→                >
+  1232→                  <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: done || active ? accentColor : "rgba(255,255,255,0.4)" }} />
+  1233→                  {active && (
+  1234→                    <motion.div
+  1235→                      className="absolute inset-0 rounded-xl border-2"
+  1236→                      style={{ borderColor: accentColor }}
+  1237→                      animate={{ opacity: [0.8, 0, 0.8], scale: [1, 1.25, 1] }}
+  1238→                      transition={{ duration: 1.5, repeat: Infinity }}
+  1239→                    />
+  1240→                  )}
+  1241→                </motion.div>
+  1242→                <span
+  1243→                  className="text-[9px] md:text-[10px] font-mono tracking-wider text-center"
+  1244→                  style={{ color: done || active ? accentColor : "rgba(255,255,255,0.3)" }}
+  1245→                >
+  1246→                  {s.label}
+  1247→                </span>
+  1248→              </div>
+  1249→              {!last && (
+  1250→                <div className="h-px flex-1 mx-2 relative overflow-hidden">
+  1251→                  <div className="absolute inset-0 bg-white/10" />
+  1252→                  <motion.div
+  1253→                    initial={false}
+  1254→                    animate={{ width: done ? "100%" : "0%" }}
+  1255→                    transition={{ duration: 0.5 }}
+  1256→                    className="absolute inset-y-0 left-0 bg-cyan-400/60"
+  1257→                  />
+  1258→                </div>
+  1259→              )}
+  1260→            </div>
+  1261→          );
+  1262→        })}
+  1263→      </div>
+  1264→
+  1265→      {/* Current stage detail */}
+  1266→      <div className="glass-panel rounded-xl p-4 flex items-center gap-3">
+  1267→        <Loader2 className="w-4 h-4 text-cyan-300 animate-spin shrink-0" />
+  1268→        <div className="flex-1 min-w-0">
+  1269→          <p className="text-xs font-mono text-white/70">
+  1270→            <span className="text-cyan-300">→</span> {SCAN_STAGES[Math.min(currentStage, SCAN_STAGES.length - 1)].label}
+  1271→          </p>
+  1272→          <p className="text-[11px] text-white/70 mt-0.5">
+  1273→            {currentStage === 0 && "Validating target URL against http(s) protocol and length limits."}
+  1274→            {currentStage === 1 && "Downloading HTML with 15s timeout and 1.5MB cap."}
+  1275→            {currentStage === 2 && "Running regex matchers across HTML and inline scripts."}
+  1276→            {currentStage === 3 && "Fetching up to 20 <script> sources, 10s each, 600KB cap."}
+  1277→            {currentStage === 4 && "Detecting AI-tool fingerprints in meta tags, comments, and JS."}
+  1278→            {currentStage === 5 && "Aggregating findings and ranking by severity."}
+  1279→          </p>
+  1280→        </div>
+  1281→        <span className="animate-blink text-cyan-300 font-mono">▌</span>
+  1282→      </div>
+  1283→    </div>
+  1284→  );
+  1285→}
+  1286→
+  1287→// ============================================================================
+  1288→// Profile section — private view of operator's own account info.
+  1289→// This is the ONLY place in the website where the user's email/name is
+  1290→// rendered. The sidebar chip hides all PII.
+  1291→// ============================================================================
+  1292→type ProfileData = {
+  1293→  ok: boolean;
+  1294→  profile?: {
+  1295→    email: string;
+  1296→    name: string | null;
+  1297→    createdAt: string;
+  1298→    scanCount: number;
+  1299→    lastScan: {
+  1300→      targetUrl: string;
+  1301→      createdAt: string;
+  1302→      findingCount: number;
+  1303→      criticalCount: number;
+  1304→      highCount: number;
+  1305→    } | null;
+  1306→  };
+  1307→  error?: string;
+  1308→};
+  1309→
+  1310→function ProfileSection({ email, name }: { email: string; name: string | null }) {
+  1311→  const [data, setData] = useState<ProfileData | null>(null);
+  1312→  const [loading, setLoading] = useState(true);
+  1313→  const [reloadKey, setReloadKey] = useState(0);
+  1314→
+  1315→  useEffect(() => {
+  1316→    let mounted = true;
+  1317→    setLoading(true);
+  1318→    (async () => {
+  1319→      try {
+  1320→        const res = await fetch("/api/profile", { method: "GET", cache: "no-store" });
+  1321→        const json = await res.json();
+  1322→        if (mounted) setData(json);
+  1323→      } catch {
+  1324→        if (mounted) setData({ ok: false, error: "Failed to load profile" });
+  1325→      } finally {
+  1326→        if (mounted) setLoading(false);
+  1327→      }
+  1328→    })();
+  1329→    return () => { mounted = false; };
+  1330→  }, [email, reloadKey]);
+  1331→
+  1332→  // Avatar initials from email or name
+  1333→  const initials = useMemo(() => {
+  1334→    const src = name || email || "?";
+  1335→    const parts = src.split(/[\s@.]+/).filter(Boolean);
+  1336→    if (parts.length === 0) return "?";
+  1337→    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  1338→    return (parts[0][0] + parts[1][0]).toUpperCase();
+  1339→  }, [email, name]);
+  1340→
+  1341→  const displayName = name || email.split("@")[0];
+  1342→  const hasError = data && !data.ok;
+  1343→  const profile = data?.profile;
+  1344→  const memberSince = profile?.createdAt
+  1345→    ? new Date(profile.createdAt).toLocaleDateString(undefined, {
+  1346→        year: "numeric", month: "short", day: "numeric",
+  1347→      })
+  1348→    : "—";
+  1349→  const scanCount = profile?.scanCount ?? 0;
+  1350→  const lastScan = profile?.lastScan;
+  1351→
+  1352→  return (
+  1353→    <motion.section
+  1354→      id="profile"
+  1355→      initial={{ opacity: 0, y: 12 }}
+  1356→      whileInView={{ opacity: 1, y: 0 }}
+  1357→      viewport={{ once: true }}
+  1358→      transition={{ duration: 0.4 }}
+  1359→      className="mt-14 scroll-mt-24"
+  1360→    >
+  1361→      <div className="flex items-center justify-between mb-4">
+  1362→        <h3 className="text-base font-semibold tracking-tight flex items-center gap-2">
+  1363→          <UserIcon className="w-4 h-4 text-cyan-300" />
+  1364→          Operator Profile
+  1365→        </h3>
+  1366→        <Badge className="text-[10px] font-mono bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
+  1367→          PRIVATE
+  1368→        </Badge>
+  1369→      </div>
+  1370→
+  1371→      <div className="glass-panel rounded-2xl overflow-hidden">
+  1372→        {/* Header band with avatar + identity */}
+  1373→        <div className="relative p-6 md:p-8 border-b border-white/5 bg-gradient-to-br from-cyan-400/5 via-transparent to-violet-400/5">
+  1374→          <div className="absolute top-3 right-4 text-[9px] font-mono text-white/60 tracking-wider">
+  1375→            VISIBLE ONLY TO YOU
+  1376→          </div>
+  1377→          <div className="flex flex-col sm:flex-row items-start gap-5">
+  1378→            {/* Avatar */}
+  1379→            <div className="relative">
+  1380→              <motion.div
+  1381→                initial={{ scale: 0.8, opacity: 0 }}
+  1382→                whileInView={{ scale: 1, opacity: 1 }}
+  1383→                viewport={{ once: true }}
+  1384→                transition={{ duration: 0.4, type: "spring" }}
+  1385→                className="w-20 h-20 rounded-2xl border border-cyan-400/40 bg-gradient-to-br from-cyan-400/20 to-violet-400/20 flex items-center justify-center shadow-[0_0_30px_-8px_rgba(34,211,238,0.4)]"
+  1386→              >
+  1387→                <span className="text-3xl font-bold tracking-tight text-white">{initials}</span>
+  1388→              </motion.div>
+  1389→              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cyan-400 border-2 border-background flex items-center justify-center">
+  1390→                <CheckCircle2 className="w-3 h-3 text-black" />
+  1391→              </div>
+  1392→            </div>
+  1393→
+  1394→            {/* Identity */}
+  1395→            <div className="flex-1 min-w-0">
+  1396→              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-1">
+  1397→                AUTHENTICATED OPERATOR
+  1398→              </div>
+  1399→              <h4 className="text-2xl font-bold tracking-tight mb-1 truncate">{displayName}</h4>
+  1400→              {loading ? (
+  1401→                <div className="flex items-center gap-2 text-xs text-white/70">
+  1402→                  <Loader2 className="w-3 h-3 animate-spin" />
+  1403→                  Loading profile…
+  1404→                </div>
+  1405→              ) : hasError ? (
+  1406→                <div className="flex items-center gap-2 text-xs">
+  1407→                  <span className="text-red-400 font-mono">Failed to load</span>
+  1408→                  <button
+  1409→                    onClick={() => setReloadKey(k => k + 1)}
+  1410→                    className="text-cyan-300 hover:text-cyan-200 underline font-mono"
+  1411→                  >
+  1412→                    retry
+  1413→                  </button>
+  1414→                </div>
+  1415→              ) : (
+  1416→                <div className="flex items-center gap-1.5 text-sm text-white/60 font-mono">
+  1417→                  <Mail className="w-3.5 h-3.5 text-white/70" />
+  1418→                  <span className="truncate">{email}</span>
+  1419→                </div>
+  1420→              )}
+  1421→              <div className="flex items-center gap-1.5 text-xs text-white/70 font-mono mt-2">
+  1422→                <Calendar className="w-3 h-3" />
+  1423→                Member since {loading ? "…" : memberSince}
+  1424→              </div>
+  1425→            </div>
+  1426→          </div>
+  1427→        </div>
+  1428→
+  1429→        {/* Stats grid */}
+  1430→        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-6 md:p-8">
+  1431→          <ProfileStatCard
+  1432→            label="Total Scans"
+  1433→            value={loading ? "—" : String(scanCount)}
+  1434→            icon={Activity}
+  1435→            accent="cyan"
+  1436→          />
+  1437→          <ProfileStatCard
+  1438→            label="Critical Found"
+  1439→            value={loading ? "—" : String(lastScan?.criticalCount ?? 0)}
+  1440→            icon={AlertTriangle}
+  1441→            accent="red"
+  1442→          />
+  1443→          <ProfileStatCard
+  1444→            label="High Found"
+  1445→            value={loading ? "—" : String(lastScan?.highCount ?? 0)}
+  1446→            icon={ShieldAlert}
+  1447→            accent="orange"
+  1448→          />
+  1449→        </div>
+  1450→
+  1451→        {/* Last scan summary */}
+  1452→        {lastScan && (
+  1453→          <div className="px-6 md:px-8 pb-6 md:pb-8">
+  1454→            <div className="glass-panel rounded-xl p-4 border-cyan-400/20">
+  1455→              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-2 flex items-center gap-1.5">
+  1456→                <Activity className="w-3 h-3" />
+  1457→                Last Scan
+  1458→              </div>
+  1459→              <p className="text-sm font-mono text-white/80 break-all mb-1">{lastScan.targetUrl}</p>
+  1460→              <div className="flex items-center gap-3 text-[10px] font-mono text-white/70">
+  1461→                <span>{new Date(lastScan.createdAt).toLocaleString()}</span>
+  1462→                <span>·</span>
+  1463→                <span>{lastScan.findingCount} findings</span>
+  1464→                {lastScan.criticalCount > 0 && (
+  1465→                  <>
+  1466→                    <span>·</span>
+  1467→                    <span className="text-red-400">{lastScan.criticalCount} crit</span>
+  1468→                  </>
+  1469→                )}
+  1470→                {lastScan.highCount > 0 && (
+  1471→                  <>
+  1472→                    <span>·</span>
+  1473→                    <span className="text-orange-400">{lastScan.highCount} high</span>
+  1474→                  </>
+  1475→                )}
+  1476→              </div>
+  1477→            </div>
+  1478→          </div>
+  1479→        )}
+  1480→
+  1481→        {/* === TRUST SLOGANS === */}
+  1482→        <div className="px-6 md:px-8 pb-6 md:pb-8">
+  1483→          <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.03] p-5">
+  1484→            <div className="flex items-center gap-2 mb-4">
+  1485→              <Shield className="w-4 h-4 text-cyan-300" />
+  1486→              <h5 className="text-xs font-mono uppercase tracking-wider text-cyan-300">
+  1487→                Trust & Security
+  1488→              </h5>
+  1489→            </div>
+  1490→            <div className="grid sm:grid-cols-2 gap-3">
+  1491→              {TRUST_SLOGANS.map((s, i) => (
+  1492→                <motion.div
+  1493→                  key={s.title}
+  1494→                  initial={{ opacity: 0, y: 6 }}
+  1495→                  whileInView={{ opacity: 1, y: 0 }}
+  1496→                  viewport={{ once: true }}
+  1497→                  transition={{ duration: 0.3, delay: i * 0.06 }}
+  1498→                  className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5 hover:border-cyan-400/20 transition group"
+  1499→                >
+  1500→                  <div className="w-8 h-8 rounded-lg border border-cyan-400/30 bg-cyan-400/5 flex items-center justify-center shrink-0 group-hover:scale-110 transition">
+  1501→                    <s.icon className="w-3.5 h-3.5 text-cyan-300" />
+  1502→                  </div>
+  1503→                  <div className="min-w-0">
+  1504→                    <p className="text-xs font-semibold text-white/90 mb-0.5">{s.title}</p>
+  1505→                    <p className="text-[11px] text-white/80 leading-snug">{s.desc}</p>
+  1506→                  </div>
+  1507→                </motion.div>
+  1508→              ))}
+  1509→            </div>
+  1510→          </div>
+  1511→        </div>
+  1512→
+  1513→        {/* Action footer */}
+  1514→        <div className="px-6 md:px-8 py-4 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+  1515→          <p className="text-[10px] font-mono text-white/70 max-w-md">
+  1516→            Your email and name are only visible here — never exposed elsewhere in the website.
+  1517→          </p>
+  1518→          <Button
+  1519→            variant="ghost"
+  1520→            size="sm"
+  1521→            onClick={() => signOut({ redirect: false })}
+  1522→            className="text-white/60 hover:text-red-300 hover:bg-red-400/5 font-mono"
+  1523→          >
+  1524→            <LogOut className="w-3.5 h-3.5 mr-1.5" />
+  1525→            Sign out
+  1526→          </Button>
+  1527→        </div>
+  1528→      </div>
+  1529→    </motion.section>
+  1530→  );
+  1531→}
+  1532→
+  1533→function ProfileStatCard({
+  1534→  label,
+  1535→  value,
+  1536→  icon: Icon,
+  1537→  accent,
+  1538→}: {
+  1539→  label: string;
+  1540→  value: string;
+  1541→  icon: LucideIcon;
+  1542→  accent: "cyan" | "red" | "orange";
+  1543→}) {
+  1544→  const accentMap = {
+  1545→    cyan: { hex: "#22d3ee", tailwind: "text-cyan-300" },
+  1546→    red: { hex: "#ef4444", tailwind: "text-red-400" },
+  1547→    orange: { hex: "#f97316", tailwind: "text-orange-400" },
+  1548→  };
+  1549→  const a = accentMap[accent];
+  1550→  return (
+  1551→    <div className="glass-panel rounded-xl p-4 relative overflow-hidden">
+  1552→      <div
+  1553→        className="absolute top-0 right-0 w-20 h-20 rounded-full blur-3xl opacity-15"
+  1554→        style={{ background: a.hex }}
+  1555→      />
+  1556→      <div className="relative flex items-start justify-between">
+  1557→        <div>
+  1558→          <p className="text-[10px] font-mono uppercase tracking-wider text-white/70">{label}</p>
+  1559→          <p className={`text-2xl font-bold tabular-nums mt-1 ${a.tailwind}`}>{value}</p>
+  1560→        </div>
+  1561→        <Icon className="w-4 h-4 opacity-50" style={{ color: a.hex }} />
+  1562→      </div>
+  1563→    </div>
+  1564→  );
+  1565→}
+  1566→
+  1567→// ============================================================================
+  1568→// Debugging solutions section — appears after scan results when findings > 0
+  1569→// ============================================================================
+  1570→function DebuggingSolutions({
+  1571→  result,
+  1572→  onRescan,
+  1573→}: {
+  1574→  result: ScanResult;
+  1575→  onRescan: () => void;
+  1576→}) {
+  1577→  const findings = result.findings;
+  1578→  const total = findings.length;
+  1579→  if (total === 0) return null;
+  1580→
+  1581→  // Group findings by category to know which solutions are relevant
+  1582→  const findingsByCategory: Record<string, number> = {};
+  1583→  for (const f of findings) {
+  1584→    findingsByCategory[f.category] = (findingsByCategory[f.category] ?? 0) + 1;
+  1585→  }
+  1586→
+  1587→  // Filter + sort solutions: only show categories that have findings, sorted by priority
+  1588→  const relevantSolutions = DEBUGGING_SOLUTIONS
+  1589→    .filter((s) => findingsByCategory[s.category])
+  1590→    .sort((a, b) => SOLUTION_PRIORITY_RANK[a.priority] - SOLUTION_PRIORITY_RANK[b.priority]);
+  1591→
+  1592→  const priorityColor: Record<DebugSolution["priority"], string> = {
+  1593→    critical: "#ef4444",
+  1594→    high: "#f97316",
+  1595→    medium: "#f59e0b",
+  1596→    low: "#0ea5e9",
+  1597→  };
+  1598→
+  1599→  return (
+  1600→    <motion.section
+  1601→      id="solutions"
+  1602→      initial={{ opacity: 0, y: 24 }}
+  1603→      whileInView={{ opacity: 1, y: 0 }}
+  1604→      viewport={{ once: true, amount: 0.1 }}
+  1605→      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+  1606→      className="mt-14 scroll-mt-24"
+  1607→    >
+  1608→      {/* Header */}
+  1609→      <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
+  1610→        <div>
+  1611→          <div className="flex items-center gap-2 mb-2">
+  1612→            <Wrench className="w-4 h-4 text-cyan-300" />
+  1613→            <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">
+  1614→              POST-SCAN REMEDIATION
+  1615→            </span>
+  1616→          </div>
+  1617→          <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
+  1618→            Debugging Solutions
+  1619→          </h3>
+  1620→          <p className="text-sm text-white/80 mt-1 max-w-xl">
+  1621→            Step-by-step action plan for the {total} {total === 1 ? "finding" : "findings"} exposed in this scan. Start with critical issues.
+  1622→          </p>
+  1623→        </div>
+  1624→        <Button
+  1625→          onClick={onRescan}
+  1626→          className="bg-white/5 hover:bg-cyan-400/10 text-white hover:text-cyan-300 border border-white/10 hover:border-cyan-400/40 font-medium"
+  1627→        >
+  1628→          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+  1629→          Re-scan target
+  1630→        </Button>
+  1631→      </div>
+  1632→
+  1633→      {/* Priority action banner */}
+  1634→      {relevantSolutions.some(s => s.priority === "critical") && (
+  1635→        <Alert className="mb-4 border-red-500/40 bg-red-500/5">
+  1636→          <AlertCircle className="w-4 h-4 text-red-400" />
+  1637→          <AlertTitle className="text-red-400 font-semibold text-sm">
+  1638→            Critical action required
+  1639→          </AlertTitle>
+  1640→          <AlertDescription className="text-sm text-white/60">
+  1641→            This scan exposed critical-severity leaks. Rotate the affected keys/secrets at their provider BEFORE deploying any other fixes — assume they are already in attacker hands.
+  1642→          </AlertDescription>
+  1643→        </Alert>
+  1644→      )}
+  1645→
+  1646→      {/* Per-category solution cards */}
+  1647→      <div className="space-y-4">
+  1648→        {relevantSolutions.map((sol, i) => {
+  1649→          const count = findingsByCategory[sol.category];
+  1650→          const color = priorityColor[sol.priority];
+  1651→          const meta = CATEGORY_META[sol.category];
+  1652→          return (
+  1653→            <motion.div
+  1654→              key={sol.category}
+  1655→              initial={{ opacity: 0, y: 12 }}
+  1656→              whileInView={{ opacity: 1, y: 0 }}
+  1657→              viewport={{ once: true, amount: 0.2 }}
+  1658→              transition={{ duration: 0.4, delay: i * 0.05 }}
+  1659→            >
+  1660→              <div className="glass-panel rounded-2xl overflow-hidden">
+  1661→                {/* Card header */}
+  1662→                <div
+  1663→                  className="px-5 py-4 border-b border-white/5 flex items-start gap-3"
+  1664→                  style={{ borderLeft: `3px solid ${color}` }}
+  1665→                >
+  1666→                  <div className="flex-1 min-w-0">
+  1667→                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+  1668→                      <span
+  1669→                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
+  1670→                        style={{ background: `${color}20`, color, border: `1px solid ${color}50` }}
+  1671→                      >
+  1672→                        {sol.priority}
+  1673→                      </span>
+  1674→                      <span className="text-[10px] font-mono text-white/70">
+  1675→                        {meta?.label ?? sol.category} · {count} {count === 1 ? "finding" : "findings"}
+  1676→                      </span>
+  1677→                    </div>
+  1678→                    <h4 className="text-base font-semibold tracking-tight text-white/90">
+  1679→                      {sol.title}
+  1680→                    </h4>
+  1681→                    <p className="text-xs text-white/80 mt-1 leading-relaxed">{sol.summary}</p>
+  1682→                  </div>
+  1683→                </div>
+  1684→
+  1685→                {/* Steps list */}
+  1686→                <div className="p-5">
+  1687→                  <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-3 flex items-center gap-1.5">
+  1688→                    <ListChecks className="w-3 h-3" />
+  1689→                    Action Plan
+  1690→                  </div>
+  1691→                  <ol className="space-y-2.5">
+  1692→                    {sol.steps.map((step, idx) => (
+  1693→                      <li key={idx} className="flex items-start gap-3 text-sm">
+  1694→                        <span
+  1695→                          className="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center text-[10px] font-mono font-medium"
+  1696→                          style={{
+  1697→                            background: `${color}15`,
+  1698→                            borderColor: `${color}40`,
+  1699→                            color,
+  1700→                          }}
+  1701→                        >
+  1702→                          {String(idx + 1).padStart(2, "0")}
+  1703→                        </span>
+  1704→                        <span className="text-white/70 leading-relaxed pt-0.5">{step}</span>
+  1705→                      </li>
+  1706→                    ))}
+  1707→                  </ol>
+  1708→
+  1709→                  {/* Tools links */}
+  1710→                  {sol.tools && sol.tools.length > 0 && (
+  1711→                    <div className="mt-4 pt-4 border-t border-white/5">
+  1712→                      <div className="text-[10px] font-mono uppercase tracking-wider text-white/70 mb-2">
+  1713→                        Tools & Resources
+  1714→                      </div>
+  1715→                      <div className="flex flex-wrap gap-2">
+  1716→                        {sol.tools.map((t) => (
+  1717→                          <a
+  1718→                            key={t.url}
+  1719→                            href={t.url}
+  1720→                            target="_blank"
+  1721→                            rel="noopener noreferrer nofollow"
+  1722→                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-white/70 hover:text-cyan-300 hover:border-cyan-400/30 hover:bg-cyan-400/5 transition"
+  1723→                          >
+  1724→                            <ExternalLink className="w-3 h-3" />
+  1725→                            {t.name}
+  1726→                          </a>
+  1727→                        ))}
+  1728→                      </div>
+  1729→                    </div>
+  1730→                  )}
+  1731→                </div>
+  1732→              </div>
+  1733→            </motion.div>
+  1734→          );
+  1735→        })}
+  1736→      </div>
+  1737→
+  1738→      {/* Verification checklist */}
+  1739→      <div className="mt-6 glass-panel rounded-2xl p-5 border-cyan-400/20">
+  1740→        <div className="flex items-center gap-2 mb-3">
+  1741→          <CheckCircle2 className="w-4 h-4 text-cyan-300" />
+  1742→          <h4 className="text-sm font-semibold tracking-tight text-cyan-300">
+  1743→            Verification checklist
+  1744→          </h4>
+  1745→        </div>
+  1746→        <p className="text-xs text-white/80 mb-4 leading-relaxed">
+  1747→          After applying the fixes above, run through this checklist before re-scanning to confirm everything is in place.
+  1748→        </p>
+  1749→        <div className="grid sm:grid-cols-2 gap-2">
+  1750→          {[
+  1751→            "All leaked keys revoked at their provider's console",
+  1752→            "New keys stored only in server-side env vars",
+  1753→            "Web server returns 404 for /.env, /.git/, /package.json",
+  1754→            "Source maps (.js.map) return 404 on production",
+  1755→            "console.log stripped from production bundle",
+  1756→            "process.env.* no longer appears in shipped JS",
+  1757→            "AI-generator meta tags + comments stripped",
+  1758→            "Hardcoded PII moved to server-rendered partials",
+  1759→          ].map((check) => (
+  1760→            <div
+  1761→              key={check}
+  1762→              className="flex items-start gap-2 text-xs text-white/60 p-2 rounded-lg bg-white/[0.02] border border-white/5"
+  1763→            >
+  1764→              <span className="shrink-0 w-4 h-4 rounded border border-white/20 mt-0.5" />
+  1765→              <span className="leading-snug">{check}</span>
+  1766→            </div>
+  1767→          ))}
+  1768→        </div>
+  1769→        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+  1770→          <p className="text-[10px] font-mono text-white/70">
+  1771→            Re-scan after applying fixes to verify — should show 0 findings.
+  1772→          </p>
+  1773→          <Button
+  1774→            onClick={onRescan}
+  1775→            size="sm"
+  1776→            className="bg-white hover:bg-white/90 text-black font-semibold"
+  1777→          >
+  1778→            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+  1779→            Re-scan now
+  1780→          </Button>
+  1781→        </div>
+  1782→      </div>
+  1783→    </motion.section>
+  1784→  );
+  1785→}
+  1786→
+  1787→// ============================================================================
+  1788→// Result dashboard — premium glass + expandable findings
+  1789→// ============================================================================
+  1790→function ResultDashboard({
+  1791→  result,
+  1792→  onExport,
+  1793→  onClear,
+  1794→}: {
+  1795→  result: ScanResult;
+  1796→  onExport: () => void;
+  1797→  onClear: () => void;
+  1798→}) {
+  1799→  const counts = severityCount(result.findings);
+  1800→  const total = result.findings.length;
+  1801→
+  1802→  const grouped: Record<string, Finding[]> = {};
+  1803→  for (const f of result.findings) {
+  1804→    if (!grouped[f.category]) grouped[f.category] = [];
+  1805→    grouped[f.category].push(f);
+  1806→  }
+  1807→
+  1808→  const severities: (keyof typeof counts)[] = ["critical", "high", "medium", "low", "info"];
+  1809→  const sevColors: Record<string, string> = {
+  1810→    critical: "bg-red-500",
+  1811→    high: "bg-orange-500",
+  1812→    medium: "bg-amber-500",
+  1813→    low: "bg-yellow-400",
+  1814→    info: "bg-sky-500",
+  1815→  };
+  1816→  const sevHex: Record<string, string> = {
+  1817→    critical: "#ef4444",
+  1818→    high: "#f97316",
+  1819→    medium: "#f59e0b",
+  1820→    low: "#facc15",
+  1821→    info: "#0ea5e9",
+  1822→  };
+  1823→
+  1824→  return (
+  1825→    <motion.section
+  1826→      initial={{ opacity: 0, y: 12 }}
+  1827→      animate={{ opacity: 1, y: 0 }}
+  1828→      transition={{ duration: 0.4 }}
+  1829→      className="mb-12"
+  1830→    >
+  1831→      {/* Header */}
+  1832→      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+  1833→        <div>
+  1834→          <div className="flex items-center gap-2 mb-2">
+  1835→            <Shield className="w-4 h-4 text-cyan-300" />
+  1836→            <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">SCAN REPORT</span>
+  1837→          </div>
+  1838→          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight">
+  1839→            {total === 0 ? "Target is clean" : `${total} ${total === 1 ? "finding" : "findings"} exposed`}
+  1840→          </h2>
+  1841→          <p className="text-sm text-white/80 mt-1 font-mono break-all">{result.targetUrl}</p>
+  1842→        </div>
+  1843→        <div className="flex gap-2">
+  1844→          <Button variant="outline" size="sm" onClick={onExport} disabled={total === 0}
+  1845→            className="border-white/10 text-white/70 hover:bg-white/5 hover:text-cyan-300 hover:border-cyan-400/30">
+  1846→            <Download className="w-3.5 h-3.5 mr-1.5" />
+  1847→            Export JSON
+  1848→          </Button>
+  1849→          <Button variant="ghost" size="sm" onClick={onClear} className="text-white/80 hover:text-white">
+  1850→            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+  1851→            Clear
+  1852→          </Button>
+  1853→        </div>
+  1854→      </div>
+  1855→
+  1856→      {/* Severity breakdown bar */}
+  1857→      {total > 0 && (
+  1858→        <div className="mb-4">
+  1859→          <div className="flex h-2 rounded-full overflow-hidden bg-white/5">
+  1860→            {severities.map((s) =>
+  1861→              counts[s] > 0 ? (
+  1862→                <motion.div
+  1863→                  key={s}
+  1864→                  className={`${sevColors[s]}`}
+  1865→                  initial={{ width: 0 }}
+  1866→                  animate={{ width: `${(counts[s] / total) * 100}%` }}
+  1867→                  transition={{ duration: 0.6, delay: 0.1 }}
+  1868→                />
+  1869→              ) : null
+  1870→            )}
+  1871→          </div>
+  1872→        </div>
+  1873→      )}
+  1874→
+  1875→      {/* Premium stat cards */}
+  1876→      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+  1877→        <PremiumStat
+  1878→          label="Total"
+  1879→          value={total}
+  1880→          icon={Layers}
+  1881→          accent="white"
+  1882→        />
+  1883→        <PremiumStat
+  1884→          label="Critical"
+  1885→          value={counts.critical}
+  1886→          icon={AlertTriangle}
+  1887→          accent="red"
+  1888→        />
+  1889→        <PremiumStat
+  1890→          label="High"
+  1891→          value={counts.high}
+  1892→          icon={ShieldAlert}
+  1893→          accent="orange"
+  1894→        />
+  1895→        <PremiumStat
+  1896→          label="Medium"
+  1897→          value={counts.medium}
+  1898→          icon={AlertTriangle}
+  1899→          accent="amber"
+  1900→        />
+  1901→        <PremiumStat
+  1902→          label="Low / Info"
+  1903→          value={counts.low + counts.info}
+  1904→          icon={CheckCircle2}
+  1905→          accent="sky"
+  1906→        />
+  1907→      </div>
+  1908→
+  1909→      {/* Meta */}
+  1910→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+  1911→        <MetaCard label="Duration" value={`${(result.durationMs / 1000).toFixed(1)}s`} />
+  1912→        <MetaCard label="HTML Bytes" value={result.fetchedBytes.toLocaleString()} />
+  1913→        <MetaCard label="Scripts" value={`${result.scriptCount}`} />
+  1914→        <MetaCard label="Path Probes" value={`${result.fileProbeCount}`} />
+  1915→      </div>
+  1916→
+  1917→      {/* Errors */}
+  1918→      {result.errors.length > 0 && (
+  1919→        <Alert className="mb-6 border-amber-500/40 bg-amber-500/5">
+  1920→          <Bug className="w-4 h-4 text-amber-500" />
+  1921→          <AlertTitle className="text-amber-400 font-mono text-xs">SCAN WARNINGS</AlertTitle>
+  1922→          <AlertDescription className="font-mono text-xs">
+  1923→            <ul className="list-disc pl-5 space-y-0.5 mt-1">
+  1924→              {result.errors.map((e, i) => (
+  1925→                <li key={i}>{e}</li>
+  1926→              ))}
+  1927→            </ul>
+  1928→          </AlertDescription>
+  1929→        </Alert>
+  1930→      )}
+  1931→
+  1932→      {/* Findings */}
+  1933→      {total === 0 ? (
+  1934→        <Alert className="border-cyan-400/40 bg-cyan-400/5">
+  1935→          <Shield className="w-4 h-4 text-cyan-300" />
+  1936→          <AlertTitle className="text-cyan-300 font-semibold">No leaks detected</AlertTitle>
+  1937→          <AlertDescription className="text-sm text-white/60">
+  1938→            None of LeakGuard&apos;s pattern matchers or path probes returned a positive result.
+  1939→            Note: this is not a full security audit — only the well-known AI-tool leak patterns are checked.
+  1940→          </AlertDescription>
+  1941→        </Alert>
+  1942→      ) : (
+  1943→        <Tabs defaultValue="all" className="mt-2">
+  1944→          <TabsList className="bg-white/5 border border-white/10 rounded-lg p-1 h-auto flex-wrap justify-start overflow-x-auto">
+  1945→            <TabsTrigger value="all" className="text-xs data-[state=active]:bg-cyan-400/15 data-[state=active]:text-cyan-300">
+  1946→              All ({total})
+  1947→            </TabsTrigger>
+  1948→            {Object.entries(grouped).map(([cat, list]) => (
+  1949→              <TabsTrigger
+  1950→                key={cat}
+  1951→                value={cat}
+  1952→                className="text-xs data-[state=active]:bg-cyan-400/15 data-[state=active]:text-cyan-300"
+  1953→              >
+  1954→                {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.label ?? cat} ({list.length})
+  1955→              </TabsTrigger>
+  1956→            ))}
+  1957→          </TabsList>
+  1958→
+  1959→          <TabsContent value="all" className="mt-4 space-y-2">
+  1960→            {result.findings.map((f, i) => (
+  1961→              <FindingRow key={f.id} finding={f} index={i} sevHex={sevHex} />
+  1962→            ))}
+  1963→          </TabsContent>
+  1964→
+  1965→          {Object.entries(grouped).map(([cat, list]) => (
+  1966→            <TabsContent key={cat} value={cat} className="mt-4 space-y-2">
+  1967→              <p className="text-xs text-white/80 mb-3 border-l-2 border-cyan-400/40 pl-3">
+  1968→                {CATEGORY_META[cat as keyof typeof CATEGORY_META]?.description}
+  1969→              </p>
+  1970→              {list.map((f, i) => (
+  1971→                <FindingRow key={f.id} finding={f} index={i} sevHex={sevHex} />
+  1972→              ))}
+  1973→            </TabsContent>
+  1974→          ))}
+  1975→        </Tabs>
+  1976→      )}
+  1977→    </motion.section>
+  1978→  );
+  1979→}
+  1980→
+  1981→// ============================================================================
+  1982→// Premium stat card — glass + accent + icon
+  1983→// ============================================================================
+  1984→function PremiumStat({
+  1985→  label,
+  1986→  value,
+  1987→  icon: Icon,
+  1988→  accent,
+  1989→}: {
+  1990→  label: string;
+  1991→  value: number;
+  1992→  icon: LucideIcon;
+  1993→  accent: "white" | "red" | "orange" | "amber" | "sky";
+  1994→}) {
+  1995→  const accentMap = {
+  1996→    white: { hex: "#ffffff", tailwind: "text-white" },
+  1997→    red: { hex: "#ef4444", tailwind: "text-red-400" },
+  1998→    orange: { hex: "#f97316", tailwind: "text-orange-400" },
+  1999→    amber: { hex: "#f59e0b", tailwind: "text-amber-400" },
+  2000→    sky: { hex: "#0ea5e9", tailwind: "text-sky-400" },
+
+[showing lines 1-2000 of 2426; use offset=2001 with limit to continue reading]
